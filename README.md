@@ -1,8 +1,10 @@
-# NARA — Gestor ISP (Rust / Axum) para RiverOs
+# NARA-MIPS — Gestor ISP (Rust / Axum) para RiverOs
 
 Panel de administración y portal hotspot para redes ISP. Backend Rust (Axum/Tokio) con
-frontend SPA vanilla servido desde disco. Orientado a MikroTik hEX RB750Gr3 (MT7621,
-mipsel_24kc) corriendo OpenWrt 25.12.5 reducido (RiverOs).
+frontend SPA vanilla servido desde disco. **Arquitectura: mipsel (MIPS32 LE, MT7621)**.
+
+> Nota de naming: el repo original `NARA` (Alpine/x86) queda intacto; esta variante
+> es el clon para **MIPS (mipsel_24kc)** — MikroTik hEX RB750Gr3 con OpenWrt 25.12.5.
 
 ## Arquitectura
 
