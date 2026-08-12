@@ -234,7 +234,19 @@ var mwan = {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
     })
-      .then(function(r){ return r.json(); })
+      .then(function(r){
+        // El backend puede responder JSON {status,message} (200) o texto
+        // plano (400/500). Parsear de forma segura y mostrar el mensaje real.
+        return r.text().then(function(t){
+          var obj = null;
+          try { obj = JSON.parse(t); } catch(e) {}
+          if(!r.ok){
+            var msg = (obj && (obj.message || obj.error)) || t || ('HTTP '+r.status);
+            throw new Error(msg);
+          }
+          return obj || {message: t};
+        });
+      })
       .then(function(resp){
         self.showMsg('✅ '+(resp.message||'Config guardada'));
         document.getElementById('mwan-save-btn').textContent = '💾 Guardar y Aplicar';

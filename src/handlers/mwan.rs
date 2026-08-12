@@ -164,7 +164,12 @@ pub async fn get_mwan_status() -> Json<serde_json::Value> {
         let (ip, _gateway) = detect_iface_wan(&iface).await.unwrap_or((wan.ip.clone(), String::new()));
         let gw = wan.gateway.clone();
 
-        if status == "up" {
+        // FIX (2026-08-12): crear la ruta a la tabla SIEMPRE que haya gateway
+        // (antes solo si status==up). `ip route replace` rechaza nexthop con
+        // link down -> levantar el link administrativo primero (sin carrier
+        // fisico la ruta queda "linkdown" pero lista para cuando suba).
+        if !gw.is_empty() {
+            let _ = Command::new("ip").args(["link", "set", &iface, "up"]).output().await;
             let has_route = Command::new("ip")
                 .args(["route", "show", "table", &wan.table.to_string(), "default"])
                 .output()
@@ -173,7 +178,7 @@ pub async fn get_mwan_status() -> Json<serde_json::Value> {
                 .and_then(|o| String::from_utf8(o.stdout).ok())
                 .map(|s| s.contains("default"))
                 .unwrap_or(false);
-            if !has_route && !gw.is_empty() {
+            if !has_route {
                 let _ = Command::new("ip")
                     .args(["route", "replace", "default", "via", &gw, "dev", &iface, "table", &wan.table.to_string()])
                     .output()
@@ -450,6 +455,8 @@ async fn apply_wan_ip_change(iface: &str, new_ip: &str, new_gw: &str, table: u32
             let err = String::from_utf8_lossy(&add_out.stderr);
             return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("ip addr add fallo: {}", err.trim())));
         }
+        // Levantar el link administrativo para que la ruta con nexthop sea aceptada
+        let _ = Command::new("ip").args(["link", "set", iface, "up"]).output().await;
         if !new_gw.is_empty() && table > 0 {
             let _ = Command::new("ip")
                 .args(["route", "replace", "default", "via", new_gw, "dev", iface, "table", &table.to_string()])
@@ -503,12 +510,79 @@ async fn apply_wan_ip_change(iface: &str, new_ip: &str, new_gw: &str, table: u32
     Ok(())
 }
 
+/// Persistencia en OpenWrt via UCI: crea/actualiza una seccion de interfaz
+/// (proto static) en /etc/config/network. El cambio en vivo ya se aplico con
+/// `ip addr`; aqui solo se deja la config para que sobreviva al reboot.
+fn update_uci_iface(iface: &str, new_ip: &str, prefix: &str, new_gw: &str) -> Result<(), (StatusCode, String)> {
+    // Nombre de seccion UCI seguro: wan_<iface> (p.ej. wan_eth1)
+    let sec = format!("wan_{}", iface);
+    let netmask = ipv4_prefix_to_mask(prefix)?;
+
+    // IMPORTANTE (uci OpenWrt): primero crear la seccion con `=interface`
+    // (set de opciones en seccion inexistente -> "Invalid argument")
+    let mk = std::process::Command::new("uci")
+        .args(["set", &format!("network.{}={}", sec, "interface")])
+        .output()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("uci add: {}", e)))?;
+    if !mk.status.success() {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR,
+            format!("uci add fallo: {}", String::from_utf8_lossy(&mk.stderr).trim())));
+    }
+
+    let sets: Vec<String> = vec![
+        format!("network.{}.proto=static", sec),
+        format!("network.{}.device={}", sec, iface),
+        format!("network.{}.ipaddr={}", sec, new_ip),
+        format!("network.{}.netmask={}", sec, netmask),
+    ];
+    for s in &sets {
+        let out = std::process::Command::new("uci").args(["set", s]).output()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("uci set: {}", e)))?;
+        if !out.status.success() {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR,
+                format!("uci set fallo: {}", String::from_utf8_lossy(&out.stderr).trim())));
+        }
+    }
+    if !new_gw.is_empty() {
+        let out = std::process::Command::new("uci")
+            .args(["set", &format!("network.{}.gateway={}", sec, new_gw)])
+            .output()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("uci set gateway: {}", e)))?;
+        if !out.status.success() {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR,
+                format!("uci set gateway fallo: {}", String::from_utf8_lossy(&out.stderr).trim())));
+        }
+    }
+    let commit = std::process::Command::new("uci").arg("commit").arg("network").output()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("uci commit: {}", e)))?;
+    if !commit.status.success() {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR,
+            format!("uci commit fallo: {}", String::from_utf8_lossy(&commit.stderr).trim())));
+    }
+    Ok(())
+}
+
+/// Convierte prefijo /N a mascara de red (24 -> 255.255.255.0).
+fn ipv4_prefix_to_mask(prefix: &str) -> Result<String, (StatusCode, String)> {
+    let bits: u32 = prefix.parse().map_err(|_| (StatusCode::BAD_REQUEST, "prefijo invalido".into()))?;
+    if bits > 32 {
+        return Err((StatusCode::BAD_REQUEST, "prefijo >32".into()));
+    }
+    let mask = if bits == 0 { 0u32 } else { u32::MAX << (32 - bits) };
+    Ok(format!("{}.{}.{}.{}", (mask >> 24) & 0xff, (mask >> 16) & 0xff, (mask >> 8) & 0xff, mask & 0xff))
+}
+
 /// Reemplaza `address` y `gateway` dentro del bloque `iface <iface> inet static`
 /// en /etc/network/interfaces.
 fn update_interfaces_conf(iface: &str, new_ip: &str, prefix: &str, new_gw: &str) -> Result<(), (StatusCode, String)> {
+    if std::path::Path::new("/etc/config/network").exists() {
+        return update_uci_iface(iface, new_ip, prefix, new_gw);
+    }
     const NETWORK_CONF: &str = "/etc/network/interfaces";
-    let content = std::fs::read_to_string(NETWORK_CONF)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error leyendo {}: {}", NETWORK_CONF, e)))?;
+    let content = match std::fs::read_to_string(NETWORK_CONF) {
+        Ok(c) => c,
+        Err(_) => return Ok(()), // sin archivo: cambio aplicado en runtime
+    };
     let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
 
     let mut in_block = false;
@@ -601,6 +675,12 @@ pub async fn post_mwan_config(
 
     // P1: validar entradas ANTES de tocar el sistema (antes iface con IP
     // basura = DoS; inyección de lineas en /etc/network/interfaces)
+    // FIX (2026-08-12): el frontend SIEMPRE envia la fila por defecto con
+    // iface vacio — NO es un error, se salta esa wan (equivalente a no tenerla).
+    let mut wans_map: HashMap<String, WanBody> = wans_map
+        .into_iter()
+        .filter(|(_, w)| !w.iface.as_deref().unwrap_or("").trim().is_empty())
+        .collect();
     for (name, wan_body) in &wans_map {
         if let Some(iface) = &wan_body.iface {
             if iface.is_empty() || !iface.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.') {
