@@ -17,18 +17,23 @@
 /// Devuelve el nombre de presentación (`ethX`) para un nombre DSA de OpenWrt.
 /// Si el nombre no es un puerto físico, devuelve el mismo nombre (lo, wg*, ppp*, br*).
 pub fn display_name(real: &str) -> String {
-    match real {
+    // DSA expone los puertos como "lan2@eth0" (master del switch); el nombre
+    // base es lo que mapeamos. "wan" y "lan2..lan5" no llevan sufijo @master.
+    let base = real.split('@').next().unwrap_or(real);
+    match base {
         "wan" => "eth0".to_string(),
         "lan2" => "eth1".to_string(),
         "lan3" => "eth2".to_string(),
         "lan4" => "eth3".to_string(),
         "lan5" => "eth4".to_string(),
-        other => other.to_string(),
+        _ => real.to_string(),
     }
 }
 
 /// Indica si la interfaz es el puerto CPU del switch (debe ocultarse del listado).
 pub fn is_cpu_port(real: &str) -> bool {
+    // El puerto CPU se ve como "eth0" a secas (sin sufijo @). Los puertos
+    // físicos van como "wan" o "lanN@eth0" — nunca deben ocultarse.
     real == "eth0"
 }
 
@@ -58,6 +63,13 @@ mod tests {
     fn lan2_es_eth1() {
         assert_eq!(display_name("lan2"), "eth1");
         assert_eq!(real_name("eth1"), "lan2");
+    }
+
+    #[test]
+    fn lan_con_sufijo_master_se_mapea() {
+        // DSA real de OpenWrt 25.12: los puertos se ven como lanN@eth0
+        assert_eq!(display_name("lan2@eth0"), "eth1");
+        assert_eq!(display_name("lan5@eth0"), "eth4");
     }
 
     #[test]
