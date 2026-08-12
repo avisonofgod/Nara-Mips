@@ -1,0 +1,11 @@
+{
+  "servers": [
+    {
+      "name": "radius-main",
+      "ip": "161.97.67.63",
+      "auth_port": 1812,
+      "acct_port": 1813,
+      "secret": "***"
+    }
+  ]
+}

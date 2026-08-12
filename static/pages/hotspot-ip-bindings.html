@@ -1,0 +1,98 @@
+<div class="page-header">
+  <h3 class="page-title">🔗 Hotspot IP Bindings</h3>
+  <button class="btn-primary" onclick="mostrarAddIb()">+ Add Binding</button>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>IP Address</th>
+    <th>MAC Address</th>
+    <th>Type</th>
+    <th>Comment</th>
+    <th>Status</th>
+    <th></th>
+  </tr>
+  <tbody id="ib-tbody"><tr><td colspan="6" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+function mostrarAddIb(){
+  var html =
+    '<div class="grid-2">' +
+      zUI.input('ib-ip', 'IP Address', '192.168.10.50', {mono:true}) +
+      zUI.input('ib-mac', 'MAC Address', '00:11:22:33:44:AA', {mono:true}) +
+    '</div>' +
+    '<div class="grid-2">' +
+      zUI.select('ib-type', 'Type', [
+        {value:'bypassed', text:'⏩ Bypassed (sin login)'},
+        {value:'blocked', text:'⛔ Blocked'}
+      ]) +
+      zUI.input('ib-comment', 'Comment', 'ej: admin-pc') +
+    '</div>';
+  zModal.show('add-ib-modal', '➕ IP Binding', html, 'Añadir', function(){
+    var ip = document.getElementById('ib-ip').value.trim();
+    if(!ip){ alert('IP requerida'); return; }
+    var body = {
+      ip: ip,
+      mac: document.getElementById('ib-mac').value.trim() || '',
+      type: document.getElementById('ib-type').value,
+      comment: document.getElementById('ib-comment').value.trim() || ''
+    };
+    fetch('/api/hotspot/ip-bindings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if(d.status === 'ok'){ zModal.close('add-ib-modal'); cargarIb(); }
+      else alert('Error: '+(d.error||'desconocido'));
+    }).catch(function(e){ alert('Error: '+e.message); });
+  }, {size:'lg', cols:2});
+}
+
+function cargarIb(){
+  var tbody = document.getElementById('ib-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="page-empty">Cargando...</td></tr>';
+  fetch('/api/hotspot/ip-bindings')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data || data.length===0){
+        tbody.innerHTML = '<tr><td colspan="6" class="page-empty">Sin bindings</td></tr>';
+        return;
+      }
+      var h = '';
+      for(var i=0;i<data.length;i++){
+        var e = data[i];
+        var typeBadge = e.type === 'bypassed' ? '<span style="color:#22c55e;font-weight:600">⏩ bypassed</span>'
+          : e.type === 'blocked' ? '<span style="color:#ef4444;font-weight:600">⛔ blocked</span>'
+          : '<span>'+(e.type||'regular')+'</span>';
+        h += '<tr>'+
+          '<td style="font-family:monospace;font-weight:600">'+escHtml(e.ip||'')+'</td>'+
+          '<td style="font-family:monospace;color:var(--accent-blue)">'+escHtml(e.mac||'—')+'</td>'+
+          '<td>'+typeBadge+'</td>'+
+          '<td style="color:var(--clr-text-muted)">'+escHtml(e.comment||'')+'</td>'+
+          '<td><span class="badge badge-success">● activo</span></td>'+
+          '<td><button class="btn-danger btn-sm" onclick="eliminarIb(\''+escHtml(e.ip)+'\')">✕</button></td>'+
+        '</tr>';
+      }
+      tbody.innerHTML = h;
+    })
+    .catch(function(e){
+      tbody.innerHTML = '<tr><td colspan="6" class="page-empty" style="color:var(--accent-red)">Error: '+e.message+'</td></tr>';
+    });
+}
+
+function eliminarIb(ip){
+  if(!confirm('Eliminar binding IP '+ip+'?')) return;
+  fetch('/api/hotspot/ip-bindings/delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ip: ip})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.status === 'ok') cargarIb();
+    else alert('Error: '+(d.error||'desconocido'));
+  }).catch(function(e){ alert('Error: '+e.message); });
+}
+
+cargarIb();
+</script>

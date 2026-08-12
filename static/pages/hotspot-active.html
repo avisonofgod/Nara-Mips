@@ -1,0 +1,70 @@
+<div class="page-header">
+  <h3>🔥 Active Sessions</h3>
+  <button class="btn-ghost" onclick="cargarHotspotActive()">🔄 Refresh</button>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>User</th>
+    <th>IP</th>
+    <th>Uptime</th>
+    <th>Status</th>
+    <th></th>
+  </tr>
+  <tbody id="hotspot-active-tbody"><tr><td colspan="5" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+var hsLoaded = false;
+
+function cargarHotspotActive(){
+  var tbody = document.getElementById('hotspot-active-tbody');
+  // NO borrar la tabla anterior mientras carga (polling sin parpadeo)
+  if(!hsLoaded) tbody.innerHTML = '<tr><td colspan="5" class="page-empty">Cargando...</td></tr>';
+  fetch('/api/hotspot/active')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      hsLoaded = true;
+      if(!data || data.length===0){
+        tbody.innerHTML = '<tr><td colspan="5" class="page-empty">Sin sesiones activas</td></tr>';
+        return;
+      }
+      var h = '';
+      for(var i=0;i<data.length;i++){
+        var s = data[i];
+        var user = s.username || '—';
+        var ip = s.ip || '—';
+        var uptime = s.uptime || '—';
+        h += '<tr>'+
+          '<td style="font-weight:600">'+escHtml(user)+'</td>'+
+          '<td style="font-family:monospace">'+escHtml(ip)+'</td>'+
+          '<td style="color:var(--clr-text-muted)">'+escHtml(uptime)+'</td>'+
+          '<td><span class="badge badge-success">● Online</span></td>'+
+          '<td><button class="btn-danger btn-sm" onclick="desconectarHotspot(\''+escHtml(ip)+'\',\''+escHtml(user)+'\')">✕ Desconectar</button></td>'+
+        '</tr>';
+      }
+      tbody.innerHTML = h;
+    })
+    .catch(function(e){
+      tbody.innerHTML = '<tr><td colspan="5" class="page-empty" style="color:var(--accent-red)">Error: '+e.message+'</td></tr>';
+    });
+}
+
+function desconectarHotspot(ip, username){
+  if(!confirm('Desconectar a '+username+' ('+ip+')?')) return;
+  fetch('/hotspot/portal/disconnect', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'username='+encodeURIComponent(username)
+  }).then(function(){
+    cargarHotspotActive();
+  }).catch(function(e){ alert('Error: '+e.message); });
+}
+
+window.cargarHotspotActive = cargarHotspotActive;
+window.desconectarHotspot = desconectarHotspot;
+cargarHotspotActive();
+// Auto-refresh 10s (antes 5s — excesivo)
+setInterval(cargarHotspotActive, 10000);
+</script>

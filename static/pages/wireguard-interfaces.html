@@ -1,0 +1,80 @@
+<div class="page-header">
+  <h3 class="page-title">🔒 WireGuard Interfaces</h3>
+  <button class="btn btn-primary" onclick="mostrarAddIface()">+ Add Interface</button>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Name</th><th>Public Key</th><th>Listen Port</th><th>Address</th><th>Peers</th><th>Status</th><th></th>
+  </tr>
+  <tbody id="wg-ifaces-tbody"><tr><td colspan="7" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+(function(){
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function wgRow(x){
+  var sc = x.status==='up' ? 'badge badge-up' : 'badge badge-down';
+  var sl = x.status==='up' ? 'up' : 'down';
+  return '<tr>'+
+    '<td style="font-weight:600;font-family:monospace">'+esc(x.name)+'</td>'+
+    '<td style="font-family:monospace;font-size:12px;color:#60a5fa"><span title="'+esc(x.public_key||'')+'">'+esc((x.public_key||'--').substring(0,20))+'..</span></td>'+
+    '<td style="font-family:monospace;color:#f59e0b">'+(x.listen_port||'--')+'</td>'+
+    '<td style="font-family:monospace">'+esc(x.address||'--')+'</td>'+
+    '<td style="font-weight:600;color:'+(x.peers_count>0?'#22c55e':'#64748b')+'">'+(x.peers_count||0)+'</td>'+
+    '<td><span class="'+sc+'">'+sl+'</span></td>'+
+    '<td><button class="btn btn-sm del-btn" onclick="deleteWgIface(\''+esc(x.name)+'\')">[x]</button></td>'+
+  '</tr>';
+}
+
+function renderIfaces(d){
+  var tb = document.getElementById('wg-ifaces-tbody');
+  if(!d || d.length===0){ tb.innerHTML='<tr><td colspan="7" class="page-empty">Sin interfaces</td></tr>'; return; }
+  var h=''; for(var i=0;i<d.length;i++) h+=wgRow(d[i]);
+  tb.innerHTML=h;
+}
+
+function cargar(){
+  fetch('/api/wireguard/interfaces').then(function(r){ return r.json(); }).then(function(d){
+    renderIfaces(d);
+  }).catch(function(){
+    document.getElementById('wg-ifaces-tbody').innerHTML='<tr><td colspan="7" class="page-empty tx-red">Error al cargar</td></tr>';
+  });
+}
+
+function mostrarAddIface(){
+  zModal.show('wg-add-modal','Anadir Interfaz',
+    '<div class="form-group"><label class="form-label">Nombre</label><input id="wg-name" class="form-input" value="wg1" style="font-family:monospace"/></div>'+
+    '<div class="form-group"><label class="form-label">Address</label><input id="wg-addr" class="form-input" value="10.7.0.15/32" style="font-family:monospace"/></div>'+
+    '<div class="form-group"><label class="form-label">Listen Port</label><input id="wg-port" class="form-input" value="51820" type="number"/></div>'+
+    '<div class="form-group"><label class="form-label">Private Key</label><input id="wg-priv" class="form-input" placeholder="base64..." style="font-family:monospace"/></div>'+
+    '<div class="form-group"><label class="form-label">DNS</label><input id="wg-dns" class="form-input" value="1.1.1.1" style="font-family:monospace"/></div>'+
+    '<div class="form-group"><label class="form-label">MTU</label><input id="wg-mtu" class="form-input" value="1420" type="number"/></div>',
+    'Guardar', function(){
+    var n=document.getElementById('wg-name').value.trim(); if(!n){alert('Nombre requerido');return;}
+      fetch('/api/wireguard/interfaces',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          name:n,
+          address:document.getElementById('wg-addr').value.trim(),
+          listen_port:parseInt(document.getElementById('wg-port').value)||51820,
+          private_key:document.getElementById('wg-priv').value.trim(),
+          dns:document.getElementById('wg-dns').value.trim(),
+          mtu:parseInt(document.getElementById('wg-mtu').value)||0
+        })
+      }).then(function(r){return r.json();}).then(function(){cargar();zModal.close('wg-add-modal');}).catch(function(e){console.error(e);});
+    }, {size:'lg', cols:2});
+}
+
+function deleteWgIface(name){
+  if(!confirm('Eliminar interfaz '+name+'?')) return;
+  fetch('/api/wireguard/interfaces',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})
+  }).then(function(r){return r.json();}).then(function(){cargar();}).catch(function(e){console.error(e);});
+}
+
+window.mostrarAddIface=mostrarAddIface;
+window.deleteWgIface=deleteWgIface;
+cargar();
+})();
+</script>

@@ -1,0 +1,144 @@
+<div class="page-header">
+  <h3 class="page-title">📁 Archivos y Configuración</h3>
+  <span class="text-muted">Configs en /etc/zpot/*.json — exportar/importar por componente + backup del portal hotspot</span>
+</div>
+
+<div class="card" style="margin-bottom:1rem;padding:1rem">
+  <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+    <div style="font-weight:600">💾 Configuración (todos los componentes)</div>
+    <button class="btn-ghost btn-sm" onclick="exportarConfig()" title="Descarga zpot-config.json con todos los /etc/zpot/*.json">⬇ Exportar</button>
+    <button class="btn-ghost btn-sm" onclick="document.getElementById('import-file').click()" title="Restaura un zpot-config.json (respalda los actuales)">⬆ Importar</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importarConfig(this.files[0])"/>
+    <span class="text-muted" style="font-size:0.8rem">El import respalda cada archivo como .bak-&lt;timestamp&gt; antes de reemplazarlo</span>
+  </div>
+  <div id="cfg-msg" style="margin-top:0.5rem;font-size:0.85rem"></div>
+</div>
+
+<div class="card" style="margin-bottom:1rem;padding:1rem">
+  <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+    <div style="font-weight:600">🔥 Portal Hotspot (static/hotspot)</div>
+    <button class="btn-ghost btn-sm" onclick="descargarHotspot()" title="Descarga hotspot.tar.gz">⬇ Descargar carpeta</button>
+    <button class="btn-ghost btn-sm" onclick="document.getElementById('hotspot-file').click()" title="Sube hotspot.tar.gz (respalda la actual)">⬆ Subir carpeta</button>
+    <input type="file" id="hotspot-file" accept=".gz,.tar,.tgz" style="display:none" onchange="subirHotspot(this.files[0])"/>
+    <span class="text-muted" style="font-size:0.8rem">La carpeta actual se respalda como hotspot.bak-&lt;timestamp&gt;</span>
+  </div>
+  <div id="hs-msg" style="margin-top:0.5rem;font-size:0.85rem"></div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Archivo</th><th>Tamaño (bytes)</th>
+  </tr>
+  <tbody id="files-tbody"><tr><td colspan="2" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+function fileRow(x){
+  return '<tr>'+
+    '<td style="font-weight:600;font-family:var(--font-mono);color:var(--accent-blue)">'+escHtml(x.name)+'</td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted)">'+escHtml(String(x.size))+'</td>'+
+  '</tr>';
+}
+window.renderFiles = function(entries){ zTable.render('files-tbody', entries, fileRow); };
+
+function cargarFiles(){
+  fetch('/api/system/files')
+    .then(function(r){ return r.json(); })
+    .then(function(files){
+      if(files && files.length) window.renderFiles(files);
+      else { var t = document.getElementById('files-tbody'); if(t) t.innerHTML = '<tr><td colspan="2" class="page-empty">Sin archivos</td></tr>'; }
+    })
+    .catch(function(e){
+      var t = document.getElementById('files-tbody');
+      if(t) t.innerHTML = '<tr><td colspan="2" class="page-empty">Error: '+e.message+'</td></tr>';
+    });
+}
+window.cargarFiles = cargarFiles;
+
+function exportarConfig(){
+  var msg = document.getElementById('cfg-msg');
+  msg.innerHTML = '<span class="text-muted">Generando export...</span>';
+  fetch('/api/system/export')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var blob = new Blob([JSON.stringify(d, null, 2)], {type: 'application/json'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'zpot-config-' + (new Date().toISOString().slice(0,10)) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      var n = Object.keys(d.components || {}).length;
+      msg.innerHTML = '<span style="color:#16a34a">Exportado: '+n+' componentes</span>';
+    })
+    .catch(function(e){ msg.innerHTML = '<span style="color:#e74c3c">Error: '+escHtml(e.message)+'</span>'; });
+}
+
+function importarConfig(file){
+  var msg = document.getElementById('cfg-msg');
+  if(!file){ return; }
+  msg.innerHTML = '<span class="text-muted">Leyendo '+escHtml(file.name)+'...</span>';
+  var reader = new FileReader();
+  reader.onload = function(){
+    if(!confirm('Importar '+file.name+'? Los archivos actuales se respaldaran como .bak-timestamp.')) return;
+    msg.innerHTML = '<span class="text-muted">Importando...</span>';
+    fetch('/api/system/import', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: reader.result
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if(d.status === 'ok'){
+        var lista = (d.restored || []).join(', ');
+        msg.innerHTML = '<span style="color:#16a34a">Importados: '+lista+' (backup '+d.backup_ts+')</span>';
+        cargarFiles();
+      } else {
+        msg.innerHTML = '<span style="color:#e74c3c">Error: '+escHtml(d.error||JSON.stringify(d))+'</span>';
+      }
+    }).catch(function(e){ msg.innerHTML = '<span style="color:#e74c3c">Error: '+escHtml(e.message)+'</span>'; });
+  };
+  reader.readAsText(file);
+}
+
+function descargarHotspot(){
+  var msg = document.getElementById('hs-msg');
+  msg.innerHTML = '<span class="text-muted">Generando tar.gz...</span>';
+  fetch('/api/system/files/hotspot/download')
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+    .then(function(blob){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'hotspot-' + (new Date().toISOString().slice(0,10)) + '.tar.gz';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      msg.innerHTML = '<span style="color:#16a34a">Descargado hotspot.tar.gz ('+(blob.size/1024).toFixed(1)+' KB)</span>';
+    })
+    .catch(function(e){ msg.innerHTML = '<span style="color:#e74c3c">Error: '+escHtml(e.message)+'</span>'; });
+}
+
+function subirHotspot(file){
+  var msg = document.getElementById('hs-msg');
+  if(!file){ return; }
+  if(!confirm('Subir '+file.name+'? La carpeta hotspot actual se respaldara como hotspot.bak-timestamp.')) return;
+  msg.innerHTML = '<span class="text-muted">Subiendo '+escHtml(file.name)+'...</span>';
+  fetch('/api/system/files/hotspot/upload', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/gzip'},
+    body: file
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.status === 'ok'){
+      msg.innerHTML = '<span style="color:#16a34a">Portal restaurado. Backup: '+escHtml(d.backup)+'</span>';
+    } else {
+      msg.innerHTML = '<span style="color:#e74c3c">Error: '+escHtml(d.error||JSON.stringify(d))+'</span>';
+    }
+  }).catch(function(e){ msg.innerHTML = '<span style="color:#e74c3c">Error: '+escHtml(e.message)+'</span>'; });
+}
+
+window.exportarConfig = exportarConfig;
+window.importarConfig = importarConfig;
+window.descargarHotspot = descargarHotspot;
+window.subirHotspot = subirHotspot;
+cargarFiles();
+</script>

@@ -1,0 +1,59 @@
+<div class="page-header">
+  <h3 class="page-title">Sesiones PPP Activas</h3>
+  <button class="btn-ghost" onclick="loadPppActive()">&#x1f504; Refresh</button>
+</div>
+
+<div id="ppp-active-content">
+  <div class="loading">Cargando sesiones activas...</div>
+</div>
+
+<script>
+function loadPppActive(){
+  var container = document.getElementById('ppp-active-content');
+  // NO borrar contenido anterior — mantener tabla vieja mientras carga
+  zFetch('/api/ppp/active').then(function(list){
+    if(!list || list.length===0){
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1f6ab;</div><div class="empty-title">Sin sesiones activas</div></div>';
+      return;
+    }
+    var h = '';
+    for(var i=0;i<list.length;i++){
+      var x = list[i];
+      h += '<tr>'+
+        '<td><span style="font-weight:600">'+escHtml(x.interface)+'</span></td>'+
+        '<td><span class="mono">'+escHtml(x.user)+'</span></td>'+
+        '<td><span class="mono">'+escHtml(x.remote_ip)+'</span></td>'+
+        '<td><span class="mono">'+escHtml(x.local_ip)+'</span></td>'+
+        '<td><button class="btn-icon-danger" onclick="disconnectPppSession(\''+escAttr(x.interface)+'\',\''+escAttr(x.user)+'\')" title="Desconectar">&#x274c;</button></td>'+
+      '</tr>';
+    }
+    container.innerHTML = '<div class="table-wrap"><table><thead><tr>'+
+      '<th>Interface</th><th>User</th><th>Remote IP</th><th>Local IP</th><th></th>'+
+    '</tr></thead><tbody>'+h+'</tbody></table></div>';
+  }).catch(function(e){
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x26a0;&#xfe0f;</div><div class="empty-title">Error</div><div class="empty-desc">'+e.message+'</div></div>';
+  });
+}
+
+function disconnectPppSession(iface, user){
+  if(!confirm('Desconectar '+user+' de '+iface+'?')) return;
+  // FIX F5: /api/ppp/disconnect NO existia (404). La ruta real es
+  // /api/ppp/secrets/disconnect con {username}.
+  fetch('/api/ppp/secrets/disconnect', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username: user})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.ok) loadPppActive();
+    else alert('Error: '+(d.error||JSON.stringify(d)));
+  }).catch(function(e){ alert('Error: '+e.message); });
+}
+
+window._initPppActive = loadPppActive;
+// Exponer funciones para onclick
+window.loadPppActive = loadPppActive;
+window.disconnectPppSession = disconnectPppSession;
+loadPppActive();
+// Auto-refresh 10s (lp limpia intervals al navegar)
+setInterval(loadPppActive, 10000);
+</script>

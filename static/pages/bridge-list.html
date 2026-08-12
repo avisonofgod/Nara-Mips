@@ -1,0 +1,124 @@
+<div class="page-header">
+  <h3 class="page-title">🔗 Bridge List</h3>
+  <button class="btn-primary" onclick="showAddBridge()">+ Add Bridge</button>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>#</th><th>Name</th><th>MAC</th><th>MTU</th><th>STP</th><th>Priority</th><th>Ageing</th><th>Ports</th><th></th>
+  </tr>
+  <tbody id="bridges-tbody"><tr><td colspan="9" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<style>
+.port-tag {
+  display:inline-block; background:#1e293b; color:#e2e8f0;
+  padding:2px 8px; border-radius:4px; font-size:0.8rem;
+  margin:2px 4px 2px 0; cursor:pointer;
+  border:1px solid transparent;
+}
+.port-tag:hover{ border-color:#3b82f6; }
+</style>
+
+<script>
+var bridgeFormHtml = function(){
+  return zUI.grid(2,
+    zUI.input('br-name', 'Nombre', 'ej: bridge1')+
+    '<div class="field"><label class="field-label">Puertos</label><select id="br-ports" multiple class="zinput" style="height:120px">'+
+    '</select><div class="field-hint">Ctrl+click para multi-seleccion</div></div>'
+  );
+};
+
+function loadInterfacesForSelect(){
+  fetch('/api/interfaces').then(function(r){return r.json();}).then(function(d){
+    var sel = document.querySelector('#br-ports');
+    if(!sel) return;
+    var opts = [];
+    for(var i=0;i<d.length;i++){
+      var ifname = d[i].name || d[i].ifname || '';
+      if(!ifname) continue;
+      if(ifname.indexOf('.')>=0) continue;
+      if(ifname.indexOf('bridge')>=0) continue;
+      opts.push([ifname, ifname]);
+    }
+    sel.innerHTML = opts.map(function(o){return '<option value="'+o[0]+'">'+o[1]+'</option>';}).join('');
+  }).catch(function(){});
+}
+
+function cargarBridges(){
+  var tbody = document.getElementById('bridges-tbody');
+  tbody.innerHTML = '<tr><td colspan="9" class="page-empty">Cargando...</td></tr>';
+  fetch('/api/bridges').then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.length){ tbody.innerHTML = '<tr><td colspan="9" class="page-empty">Sin bridges</td></tr>'; return; }
+    var h = '';
+    for(var i=0;i<d.length;i++){
+      var x = d[i];
+      var mac = x.mac || '-';
+      var stp = x.stp ? '<span class="badge badge-up">ON</span>' : '<span class="badge badge-down">OFF</span>';
+      var portsHtml = '';
+      for(var j=0;j<(x.ports||[]).length;j++){
+        var p = x.ports[j];
+        portsHtml += '<span class="port-tag">'+escHtml(p.iface)+' <small>('+(p.state==='up'?'🟢':'🔴')+')</small></span>';
+      }
+      if(!portsHtml) portsHtml = '<span class="muted">—</span>';
+      h += '<tr>' +
+        '<td class="mono muted">'+(i+1)+'</td>' +
+        '<td class="mono accent" style="font-weight:600">'+escHtml(x.name)+'</td>' +
+        '<td class="mono small">'+mac+'</td>' +
+        '<td class="mono">'+x.mtu+'</td>' +
+        '<td>'+stp+'</td>' +
+        '<td class="mono">'+x.priority+'</td>' +
+        '<td class="mono">'+x.ageing+'s</td>' +
+        '<td>'+portsHtml+'</td>' +
+        '<td><button class="btn-ghost btn-sm" onclick="deleteBridge(\''+escHtml(x.name)+'\')">🗑️</button></td>' +
+      '</tr>';
+    }
+    tbody.innerHTML = h;
+  }).catch(function(e){
+    tbody.innerHTML = '<tr><td colspan="9" class="page-empty" style="color:red">Error: '+escHtml(e.message)+'</td></tr>';
+  });
+}
+
+function showAddBridge(){
+  zModal.show('add-bridge-modal', '🆕 New Bridge', bridgeFormHtml(), 'Añadir', saveBridge, {size:'lg', cols:2});
+  setTimeout(loadInterfacesForSelect, 100);
+}
+
+function saveBridge(){
+  var name = document.getElementById('br-name').value.trim();
+  var sel = document.getElementById('br-ports');
+  var ports = [];
+  for(var i=0;i<sel.options.length;i++){
+    if(sel.options[i].selected) ports.push(sel.options[i].value);
+  }
+  if(!name){ alert('Nombre requerido'); return; }
+  if(!ports.length){ alert('Selecciona al menos un puerto'); return; }
+  fetch('/api/bridges', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name, ports:ports})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){ zModal.close('add-bridge-modal'); cargarBridges(); }
+    else alert('Error: '+(d.error||JSON.stringify(d)));
+  })
+  .catch(function(e){alert('Error: '+e.message);});
+}
+
+function deleteBridge(name){
+  if(!confirm('¿Eliminar bridge '+name+'?')) return;
+  if(name==='bridgeLan'||name==='br0'){ alert('No se puede eliminar el bridge principal'); return; }
+  fetch('/api/bridges/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok) cargarBridges();
+    else alert('Error: '+(d.error||JSON.stringify(d)));
+  })
+  .catch(function(e){alert('Error: '+e.message);});
+}
+
+window.cargarBridges = cargarBridges;
+window.showAddBridge = showAddBridge;
+window.saveBridge = saveBridge;
+window.deleteBridge = deleteBridge;
+
+cargarBridges();
+</script>

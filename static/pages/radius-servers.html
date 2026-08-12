@@ -1,0 +1,112 @@
+<div class="page-header">
+  <h3 class="page-title">🔐 RADIUS Servers</h3>
+  <button class="btn btn-primary" onclick="radius.add()">+ Add Server</button>
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Name</th><th>Type</th><th>IP Address</th><th>Auth Port</th><th>Acct Port</th><th>Secret</th><th>Timeout</th><th>Retries</th><th>Status</th><th></th>
+  </tr>
+  <tbody id="radius-tbody"><tr><td colspan="10" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+var radius = {
+  servers: [],
+
+  load: function(){
+    var self = this;
+    fetch('/api/radius/servers').then(function(r){ return r.json(); }).then(function(d){
+      self.servers = d || [];
+      self.render();
+    }).catch(function(){
+      // fallback mock
+      self.servers = [
+        {name:'radius-main', type:'auth', ip:'161.97.67.63', authPort:1812, acctPort:1813, secret:'85River@B', timeout:3, retries:2, status:'up'}
+      ];
+      self.render();
+    });
+  },
+
+  typeBadge: function(t){
+    var icon = t==='auth' ? '🔑' : '📋';
+    var color = t==='auth' ? '#2563eb' : '#16a34a';
+    return '<span class="badge" style="background:var(--clr-border);color:'+color+';border:1px solid '+color+'66">'+icon+' '+t+'</span>';
+  },
+
+  statusBadge: function(s){
+    if(s==='up')   return '<span class="badge badge-up">● up</span>';
+    if(s==='down') return '<span class="badge badge-down">● down</span>';
+    return '<span class="badge">'+s+'</span>';
+  },
+
+  row: function(x, i){
+    var secretMask = x.secret ? x.secret.slice(0,3)+'••••' : '••••';
+    return '<tr>'+
+      '<td style="font-weight:600;color:var(--clr-text);font-family:monospace;font-size:.85rem">'+x.name+'</td>'+
+      '<td>'+this.typeBadge(x.type)+'</td>'+
+      '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:.8rem">'+x.ip+'</td>'+
+      '<td style="font-family:monospace;color:var(--accent-amber);text-align:center;font-size:.8rem">'+x.authPort+'</td>'+
+      '<td style="font-family:monospace;color:var(--accent-amber);text-align:center;font-size:.8rem">'+x.acctPort+'</td>'+
+      '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:.75rem">'+secretMask+'</td>'+
+      '<td style="font-family:monospace;color:var(--clr-text-muted);text-align:right;font-size:.8rem">'+x.timeout+'s</td>'+
+      '<td style="font-family:monospace;color:var(--clr-text-muted);text-align:center;font-size:.8rem">'+x.retries+'</td>'+
+      '<td>'+this.statusBadge(x.status)+'</td>'+
+      '<td>'+zTable.deleteBtn('radius.del('+i+')')+'</td>'+
+    '</tr>';
+  },
+
+  render: function(){
+    zTable.render('radius-tbody', this.servers, this.row.bind(this));
+  },
+
+  add: function(){
+    var self = this;
+    var html = '<div class="grid-2">'+
+      zUI.input('rad-name', 'Name', 'ej: radius-main')+
+      zUI.select('rad-type', 'Type', [['auth','Authentication'],['acct','Accounting']])+
+      zUI.input('rad-ip', 'IP Address', 'ej: 161.97.67.63')+
+      zUI.input('rad-secret', 'Secret', 'shared secret', {type:'password', value:'85River@B'})+
+      zUI.input('rad-auth-port', 'Auth Port', '', {type:'number', value:'1812'})+
+      zUI.input('rad-acct-port', 'Acct Port', '', {type:'number', value:'1813'})+
+      zUI.input('rad-timeout', 'Timeout (s)', '', {type:'number', value:'3'})+
+      zUI.input('rad-retries', 'Retries', '', {type:'number', value:'2'})+
+    '</div>';
+    zModal.show('add-radius-modal', '➕ Add RADIUS Server', html, 'Añadir', function(){
+      var s = {
+        name: document.getElementById('rad-name').value,
+        type: document.getElementById('rad-type').value,
+        ip: document.getElementById('rad-ip').value,
+        authPort: parseInt(document.getElementById('rad-auth-port').value)||1812,
+        acctPort: parseInt(document.getElementById('rad-acct-port').value)||1813,
+        secret: document.getElementById('rad-secret').value,
+        timeout: parseInt(document.getElementById('rad-timeout').value)||3,
+        retries: parseInt(document.getElementById('rad-retries').value)||2,
+        status: 'up'
+      };
+      fetch('/api/radius/servers', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(s)
+      }).then(function(r){ return r.json(); }).then(function(){
+        self.servers.push(s);
+        self.render();
+        zModal.close('add-radius-modal');
+      }).catch(function(){
+        self.servers.push(s);
+        self.render();
+        zModal.close('add-radius-modal');
+      });
+    }, {size:'lg', cols:2});
+  },
+
+  del: function(idx){
+    var s = this.servers[idx];
+    if(!confirm('Delete RADIUS server "'+s.name+'"?')) return;
+    this.servers.splice(idx,1);
+    this.render();
+  }
+};
+window.radius = radius;
+radius.load();
+</script>

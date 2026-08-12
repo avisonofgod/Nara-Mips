@@ -1,0 +1,89 @@
+<div class="page-header">
+  <h3 class="page-title">🔗 Bridge VLAN Subinterfaces</h3>
+  <div style="display:flex;gap:0.5rem">
+    <button class="btn-primary" onclick="cargarBridgeVlans()">⟳ Refrescar</button>
+    <button class="btn-success" onclick="mostrarAddVlan()">➕ Add VLAN</button>
+  </div>
+</div>
+
+<div id="bv-content" class="page-content">
+  <div class="loading">Cargando...</div>
+</div>
+
+<script>
+function cargarBridgeVlans(){
+  var c = document.getElementById('bv-content');
+  c.innerHTML = '<div class="loading">Cargando...</div>';
+  // Obtener bridges para filtrar VLANs cuyo parent sea un bridge
+  Promise.all([
+    fetch('/api/bridges').then(function(r){ return r.json(); }),
+    fetch('/api/vlans').then(function(r){ return r.json(); })
+  ]).then(function(results){
+    var bridges = results[0] || [];
+    var allVlans = results[1] || [];
+    // Las VLANs vienen como array anidado: [[vlan,...], {rows:N}]
+    var vlanList = Array.isArray(allVlans) && Array.isArray(allVlans[0]) ? allVlans[0] : (Array.isArray(allVlans) ? allVlans : []);
+    var bridgeNames = {};
+    for(var i=0;i<bridges.length;i++){ bridgeNames[bridges[i].name] = true; }
+    // Filtrar VLANs cuyo parent sea un bridge
+    var bv = vlanList.filter(function(v){ return v.parent && bridgeNames[v.parent]; });
+    if(!bv.length){
+      c.innerHTML = '<div class="empty-state"><div class="empty-icon">🔗</div><div class="empty-title">Sin VLANs en bridges</div><div class="empty-desc">Crea un bridge desde Bridge > List, luego agrega VLANs aquí</div></div>';
+      return;
+    }
+    var h = '<div class="table-wrap"><table><thead><tr><th>Interfaz</th><th>Parent</th><th>VLAN ID</th><th>IP</th><th></th></tr></thead><tbody>';
+    for(var i=0;i<bv.length;i++){
+      var v = bv[i];
+      h += '<tr>'+
+        '<td style="font-weight:600;font-family:monospace">'+escHtml(v.name||v.interface||'')+'</td>'+
+        '<td style="font-family:monospace">'+escHtml(v.parent||'')+'</td>'+
+        '<td style="font-family:monospace;color:var(--accent-cyan)">'+(v.vid||'')+'</td>'+
+        '<td style="font-family:monospace">'+escHtml(v.ip||v.address||'—')+'</td>'+
+        '<td><button class="btn-ghost btn-sm" onclick="eliminarBridgeVlan(\''+escHtml(v.name||v.interface)+'\')" title="Eliminar" style="color:var(--accent-red)">✕</button></td>'+
+      '</tr>';
+    }
+    h += '</tbody></table></div>';
+    c.innerHTML = h;
+  }).catch(function(e){
+    c.innerHTML = '<div class="empty-state" style="color:var(--accent-red)">Error: '+e.message+'</div>';
+  });
+}
+
+function mostrarAddVlan(){
+  // Cargar bridges disponibles
+  fetch('/api/bridges').then(function(r){ return r.json(); }).then(function(bridges){
+    if(!bridges || !bridges.length){ alert('Crea un bridge primero desde Bridge > List'); return; }
+    var opts = '<option value="">— Bridge —</option>';
+    for(var i=0;i<bridges.length;i++) opts += '<option value="'+escHtml(bridges[i].name)+'">'+escHtml(bridges[i].name)+'</option>';
+    var html = '<div class="form-group"><label class="form-label">Bridge</label><select id="bv-parent" class="form-input">'+opts+'</select></div>'+
+      '<div class="form-group"><label class="form-label">VLAN ID</label><input id="bv-vid" class="form-input" type="number" min="1" max="4094" placeholder="100" style="font-family:monospace"></div>'+
+      '<div class="form-group"><label class="form-label">IP Address (opcional)</label><input id="bv-ip" class="form-input" placeholder="192.168.100.1/24" style="font-family:monospace"></div>';
+    zModal.show('add-bv-modal', '➕ VLAN en Bridge', html, 'Crear', function(){
+      var parent = document.getElementById('bv-parent').value;
+      var vid = parseInt(document.getElementById('bv-vid').value);
+      var ip = document.getElementById('bv-ip').value.trim();
+      if(!parent || !vid){ alert('Bridge y VLAN ID requeridos'); return; }
+      var name = parent + '.' + vid;
+      fetch('/api/vlans', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({interface:name, parent:parent, vid:vid, ip:ip})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.ok || d.success){ zModal.close('add-bv-modal'); cargarBridgeVlans(); }
+        else alert('Error: '+(d.error||JSON.stringify(d)));
+      }).catch(function(e){ alert('Error: '+e.message); });
+    }, {size:'md', cols:1});
+  }).catch(function(){ alert('Error cargando bridges'); });
+}
+
+function eliminarBridgeVlan(name){
+  if(!confirm('Eliminar VLAN '+name+'?')) return;
+  fetch('/api/vlans/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name})})
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(d.ok || d.success) cargarBridgeVlans();
+    else alert('Error: '+(d.error||JSON.stringify(d)));
+  }).catch(function(e){ alert('Error: '+e.message); });
+}
+
+window.cargarBridgeVlans = cargarBridgeVlans;
+cargarBridgeVlans();
+</script>

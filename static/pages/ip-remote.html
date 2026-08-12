@@ -1,0 +1,104 @@
+<div class="page-header">
+  <h2>🌐 Acceso Remoto a Cliente</h2>
+  <p>Redirige los puertos <strong>8082</strong> (http) y <strong>443</strong> (https)
+     del servidor al cliente (IP Hotspot o PPPoE). Accede desde la VPN vía
+     <code>http://10.7.0.5:8082</code> — el redirect https del panel
+     (ej. Ubiquiti/Omada) sigue pasando por el servidor.</p>
+</div>
+
+<div class="card">
+  <div class="card-body" id="remoteContent">
+    <div class="form-group">
+      <label>IP del Cliente (Hotspot/PPPoE):</label>
+      <input type="text" id="remoteIp" class="form-input" placeholder="Ej: 192.168.10.174 (hotspot) o 192.168.20.2 (pppoe)"
+             style="font-family:monospace;font-size:16px;width:340px">
+    </div>
+    <div class="form-group">
+      <label>Puertos de acceso (WAN/VPN):</label>
+      <input type="text" id="remotePort" class="form-input" readonly
+             style="font-family:monospace;font-size:16px;width:160px;background:#2a2a2a">
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn" onclick="applyRemote()" style="background:#e68a2e;color:#fff;padding:10px 24px;border:none;border-radius:6px;cursor:pointer;font-size:15px">
+        🔄 Aplicar
+      </button>
+      <button class="btn" onclick="disableRemote()" style="background:#555;color:#fff;padding:10px 24px;border:none;border-radius:6px;cursor:pointer;font-size:15px;margin-left:8px">
+        ⛔ Desactivar
+      </button>
+      <span id="remoteStatus" style="margin-left:12px;font-size:14px"></span>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div class="card-body">
+    <h3 style="margin:0 0 12px 0;color:#e68a2e">Estado actual</h3>
+    <div id="remoteState" style="font-family:monospace;font-size:14px;line-height:1.8">
+      Cargando...
+    </div>
+  </div>
+</div>
+
+<script>
+function loadRemote(){
+  fetch('/api/ip/remote').then(function(r){ return r.json(); }).then(function(d){
+    document.getElementById('remoteIp').value = d.ip || '';
+    document.getElementById('remotePort').value = (d.port || '8082') + ' / 443';
+    var st = document.getElementById('remoteState');
+    if(d.ip){
+      st.innerHTML = '<span style="color:#22c55e">✅ Activo:</span> <b>'+d.port+'</b> → <b>'+d.ip+':80</b> · <b>443</b> → <b>'+d.ip+':443</b>';
+    } else {
+      st.innerHTML = '<span style="color:#888">⏸ Inactivo — no hay IP configurada</span>';
+    }
+  });
+}
+function applyRemote(){
+  var ip = document.getElementById('remoteIp').value.trim();
+  if(!ip){ document.getElementById('remoteStatus').innerHTML = '<span style="color:#ef4444">Ingresa una IP</span>'; return; }
+  var st = document.getElementById('remoteStatus');
+  st.innerHTML = '<span style="color:#888">Aplicando...</span>';
+  fetch('/api/ip/remote', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ip:ip})})
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(d.status === 'ok'){
+      st.innerHTML = '<span style="color:#22c55e">✅ Aplicado — Puerto '+d.port+' → '+d.ip+':80</span>';
+      loadRemote();
+    } else {
+      st.innerHTML = '<span style="color:#ef4444">Error: '+(d.error||'desconocido')+'</span>';
+    }
+  })
+  .catch(function(e){
+    st.innerHTML = '<span style="color:#ef4444">Error de conexion: '+e.message+'</span>';
+  });
+}
+function disableRemote(){
+  if(!window.confirm('Desactivar el acceso remoto? Se eliminan las reglas nft 8082/443.')) return;
+  var st = document.getElementById('remoteStatus');
+  st.innerHTML = '<span style="color:#888">Desactivando...</span>';
+  fetch('/api/ip/remote', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ip:''})})
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(d.status === 'ok'){
+      st.innerHTML = '<span style="color:#22c55e">✅ Desactivado — reglas nft eliminadas</span>';
+      loadRemote();
+    } else {
+      st.innerHTML = '<span style="color:#ef4444">Error: '+(d.error||'desconocido')+'</span>';
+    }
+  })
+  .catch(function(e){
+    st.innerHTML = '<span style="color:#ef4444">Error de conexion: '+e.message+'</span>';
+  });
+}
+loadRemote();
+</script>
+
+<style>
+#remoteContent .form-group { margin-bottom:12px; }
+#remoteContent label { display:block; margin-bottom:4px; color:#aaa; font-size:13px; }
+.form-input {
+  background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px;
+  padding:8px 12px; outline:none;
+}
+.form-input:focus { border-color:#e68a2e; }
+.btn:hover { filter:brightness(1.1); }
+</style>

@@ -1,0 +1,25 @@
+<div class="fw-page">
+  <h3>📡 Conntrack — Conexiones Activas</h3>
+  <div class="fw-actions">
+    <button class="btn btn-refresh" onclick="cargarConntrack()">⟳ Refrescar</button>
+  </div>
+  <div id="conntrackSummary"></div>
+  <table class="fw-table" id="conntrackTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>PROTOCOLO</th>
+        <th>ORIGEN</th>
+        <th>DESTINO</th>
+        <th>ESTADO</th>
+      </tr>
+    </thead>
+    <tbody id="conntrackBody">
+      <tr><td colspan="5" class="loading">Cargando...</td></tr>
+    </tbody>
+  </table>
+</div>
+<script>
+function cargarConntrack(){fetch('/api/firewall/conntrack').then(function(r){return r.json()}).then(function(d){var s=document.getElementById('conntrackSummary'),t=document.getElementById('conntrackBody'),e=d.entries||[],b=d.by_state||{};s.innerHTML='<div class="summary-bar">Total: <strong>'+d.total+'</strong> conexiones | '+Object.keys(b).map(function(k){return k+': '+b[k]}).join(' | ')+'</div>';t.innerHTML='';if(!e.length){t.innerHTML='<tr><td colspan="5" class="empty">Sin conexiones activas</td></tr>';return}e.slice(0,200).forEach(function(v,i){var l4=v.layer4||{},p=l4.proto||'',src='';(v.orig||[]).forEach(function(o){if(o.src){src+=(src?', ':'')+o.src}});var dst='';(v.orig||[]).forEach(function(o){if(o.dst){dst+=(dst?', ':'')+o.dst}});var st=l4.state||'';t.innerHTML+='<tr><td>'+(i+1)+'</td><td>'+p+'</td><td>'+src+'</td><td>'+dst+'</td><td>'+st+'</td></tr>'})}).catch(function(){document.getElementById('conntrackBody').innerHTML='<tr><td colspan="5" class="error">Error al cargar</td></tr>'})}
+</script>
+</div>

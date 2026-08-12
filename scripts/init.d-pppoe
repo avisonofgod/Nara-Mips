@@ -1,0 +1,32 @@
+#!/sbin/openrc-run
+# /etc/init.d/pppoe — Servicio PPPoE Server de Zpot (Alpine)
+# 2026-08-08: pool parametrizado desde /etc/zpot/ppp-radius.json
+# (antes -R 192.168.20.100 -N 100 hardcodeado).
+description="PPPoE Server for Zpot"
+
+POOL_START=192.168.20.100
+POOL_END=192.168.20.199
+if [ -f /etc/zpot/ppp-radius.json ]; then
+  S=$(grep -o '"pool_start"[^,]*' /etc/zpot/ppp-radius.json | grep -o '[0-9.]*' | head -1)
+  E=$(grep -o '"pool_end"[^,]*' /etc/zpot/ppp-radius.json | grep -o '[0-9.]*' | head -1)
+  [ -n "$S" ] && POOL_START="$S"
+  [ -n "$E" ] && POOL_END="$E"
+fi
+S_LAST=$(echo "$POOL_START" | cut -d. -f4)
+E_LAST=$(echo "$POOL_END" | cut -d. -f4)
+COUNT=$((E_LAST - S_LAST + 1))
+[ "$COUNT" -lt 1 ] && COUNT=100
+
+command="/usr/sbin/pppoe-server"
+command_args="-I eth3.881 -N $COUNT -m 1412 -q /usr/sbin/pppd -L 192.168.20.1 -R $POOL_START"
+command_background=true
+pidfile="/run/pppoe-server.pid"
+
+start_pre() {
+        [ -c /dev/ppp ] || mknod /dev/ppp c 108 0
+}
+
+depend() {
+        need net
+        use logger
+}

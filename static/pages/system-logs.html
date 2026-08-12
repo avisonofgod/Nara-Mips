@@ -1,0 +1,42 @@
+<div class="page-header">
+  <h3 class="page-title">📋 System Logs</h3>
+  <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+    <span class="text-muted" style="font-size:0.8rem">Últimas 50 líneas de /var/log/messages</span>
+    <button class="btn-ghost" onclick="cargarLogs()" style="padding:0.4rem 0.8rem;border:1px solid #d1d5db;border-radius:4px;color:var(--clr-text-muted);cursor:pointer;font-size:0.8rem">⟳ Refresh</button>
+  </div>
+</div>
+<div class="table-wrap">
+<table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+  <thead>
+    <tr style="border-bottom:1px solid #d1d5db">
+      <th style="text-align:left;padding:0.5rem 0.75rem;color:var(--clr-text-muted);font-weight:500">Línea de log</th>
+    </tr>
+  </thead>
+  <tbody id="syslog-tbody"><tr><td style="text-align:center;color:var(--clr-text-muted);padding:2rem">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+function sysLogRow(x){
+  return '<tr>'+
+    '<td style="padding:0.35rem 0.75rem;font-family:monospace;color:var(--clr-text);font-size:0.75rem;white-space:pre-wrap">'+escHtml(x.line)+'</td>'+
+  '</tr>';
+}
+window.renderSysLogs = function(entries){ zTable.render('syslog-tbody', entries, sysLogRow); };
+
+function cargarLogs(){
+  fetch('/api/system/logs')
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(d){
+      var lines = Array.isArray(d) ? d : [];
+      if(lines.length) window.renderSysLogs(lines);
+      else { var t = document.getElementById('syslog-tbody'); if(t) t.innerHTML = '<tr><td class="page-empty">Sin logs</td></tr>'; }
+    })
+    .catch(function(e){
+      var t = document.getElementById('syslog-tbody');
+      if(t) t.innerHTML = '<tr><td class="page-empty">Error: '+e.message+'</td></tr>';
+    });
+}
+window.cargarLogs = cargarLogs;
+cargarLogs();
+</script>

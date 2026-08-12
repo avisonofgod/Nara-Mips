@@ -1,0 +1,7 @@
+/target
+/node_modules
+frontend/
+/src-tauri/target
+*.log
+*.new
+.hermes/

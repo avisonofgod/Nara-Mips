@@ -1,0 +1,66 @@
+/* ═══════════════════════════════════════════════
+   Zpot-RS — Design Tokens (Variables CSS)
+   Editar aquí cambia TODAS las páginas a la vez.
+   ═══════════════════════════════════════════════ */
+
+:root {
+  /* ─── Paleta base — tonos suaves, ojo confort ─── */
+  --clr-bg:          #f1f3f6;
+  --clr-surface:     #ffffff;
+  --clr-text:        #2d3748;
+  --clr-text-muted:  #687385;
+  --clr-text-light:  #9ca3af;
+  --clr-border:      #e8ecf1;
+  --clr-border-strong:#d1d6dd;
+
+  /* ─── Nav / Layout — fondo oscuro pero suave ─── */
+  --nav-bg:          rgba(18,18,30,.88);
+  --nav-border:      #2d2d4a;
+  --nav-text:        #9ca3b0;
+  --nav-text-hover:  #e4e6ef;
+  --nav-active:      #c084fc;
+  --nav-active-bg:   rgba(192,132,252,0.07);
+
+  /* ─── Brand / Accent — saturacion moderada ─── */
+  --accent:          #7c7ae5;
+  --accent-hover:    #6361d9;
+  --accent-blue:     #4f8ef7;
+  --accent-green:    #3bc06c;
+  --accent-red:      #e55555;
+  --accent-amber:    #e8a53a;
+  --accent-purple:   #8b7cf7;
+
+  /* ─── Tipografía ─── */
+  --font-family:     system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:       'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  --font-xs:         0.7rem;
+  --font-sm:         0.78rem;
+  --font-base:       0.85rem;
+  --font-lg:         0.95rem;
+  --font-xl:         1.1rem;
+
+  /* ─── Espaciado ─── */
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  0.75rem;
+  --space-lg:  1rem;
+  --space-xl:  1.5rem;
+
+  /* ─── Radios ─── */
+  --radius-sm:  0.3rem;
+  --radius-md:  0.55rem;
+  --radius-lg:  0.85rem;
+  --radius-xl:  1.1rem;
+
+  /* ─── Sombras — suaves, casi flotantes ─── */
+  --shadow-card:   0 1px 4px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.03);
+  --shadow-modal:  0 8px 30px rgba(0,0,0,0.12);
+  --shadow-btn:    0 1px 2px rgba(0,0,0,0.05);
+
+  /* ─── Nav sizing ─── */
+  --topnav-h:    42px;
+  --subnav-h:    32px;
+
+  /* ─── Transiciones — todas suaves ─── */
+  --ease-fast:   0.18s ease;
+}

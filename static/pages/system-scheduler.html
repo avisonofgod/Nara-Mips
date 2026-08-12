@@ -1,0 +1,93 @@
+<div class="page-header">
+  <h3 class="page-title">📅 Scheduler</h3>
+  <span class="text-muted">Entradas reales de /etc/crontabs/root (gestión manual del crontab)</span>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Name</th><th>Start Time</th><th>Interval</th><th>On Event</th><th>Policy</th><th>Owner</th><th>Run Count</th><th>Status</th>
+  </tr>
+  <tbody id="scheduler-tbody"><tr><td colspan="8" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+var tasks = [];
+
+function schedulerRow(x, i){
+  var statusClass = x.status==='enabled' ? 'badge badge-up' : 'badge badge-down';
+  var statusIcon = x.status==='enabled' ? '🟢' : '🔴';
+  var intColors = {once:'#7c3aed', '2min':'#2563eb', '5min':'#2563eb', '10min':'#16a34a', '30min':'#16a34a', '1h':'#d97706', '1d':'#a78bfa'};
+  var intColor = intColors[x.interval]||'#475569';
+  var icon = x.name.includes('watchdog') ? '🛡️' : '⏰';
+  return '<tr>'+
+    '<td style="font-weight:600;color:var(--clr-text);font-family:monospace;font-size:.85rem">'+icon+' '+x.name+'</td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:.8rem">'+x.start+'</td>'+
+    '<td style="font-family:monospace;color:'+intColor+';font-size:.8rem;font-weight:500">'+x.interval+'</td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:.8rem">'+(x.event==='none'?'—':x.event)+'</td>'+
+    '<td><span class="badge" style="background:var(--clr-border);color:var(--accent-purple);border:1px solid #a78bfa66;font-size:.7rem">'+x.policy+'</span></td>'+
+    '<td style="font-family:monospace;color:var(--accent-blue);font-size:.8rem">'+x.owner+'</td>'+
+    '<td style="font-family:monospace;color:var(--accent-amber);text-align:right;font-size:.8rem">'+(x.runs||0).toLocaleString()+'</td>'+
+    '<td><span class="'+statusClass+'">'+statusIcon+' '+x.status+'</span></td>'+
+  '</tr>';
+}
+
+function renderScheduler(data){
+  tasks = data||[];
+  zTable.render('scheduler-tbody', tasks, schedulerRow);
+}
+window.renderScheduler = renderScheduler
+
+function cargarScheduler(){
+  fetch('/api/system/scheduler')
+    .then(function(r){ return r.json(); })
+    .then(function(data){ renderScheduler(data); })
+    .catch(function(e){
+      document.getElementById('scheduler-tbody').innerHTML = '<tr><td colspan="9" class="page-empty">Error: '+e.message+'</td></tr>';
+    });
+}
+window.cargarScheduler = cargarScheduler
+
+function toggleScheduler(idx){
+  var t = tasks[idx];
+  if(!t) return;
+  // En crontab nativo no hay disable, se comenta la linea
+  if(t.status === 'enabled'){
+    // Deshabilitar: agregar # al inicio de la linea en crontab
+    fetch('/api/command', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cmd:"sed -i '/" + t.name.replace(/'/g,"'\\''") + "/s/^/#/' /etc/crontabs/root"})
+    }).then(function(){ cargarScheduler(); });
+  } else {
+    fetch('/api/command', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cmd:"sed -i '/#" + t.name.replace(/'/g,"'\\''") + "/s/^#//' /etc/crontabs/root"})
+    }).then(function(){ cargarScheduler(); });
+  }
+}
+window.toggleScheduler = toggleScheduler
+
+function deleteScheduler(idx){
+  var t = tasks[idx];
+  if(!t) return;
+  if(!confirm('Eliminar entrada cron "'+t.name+'"?')) return;
+  fetch('/api/command', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({cmd:"sed -i '/" + t.name.replace(/'/g,"'\\''") + "/d' /etc/crontabs/root"})
+  }).then(function(){ cargarScheduler(); });
+}
+window.deleteScheduler = deleteScheduler
+
+function abrirAddScheduler(){
+  zModal.show('add-scheduler-modal', '📅 Add Scheduled Task',
+    '<p style="color:var(--clr-text-muted)">Agrega la entrada manualmente en /etc/crontabs/root con:<br><code style="background:#0a0f16;padding:2px 6px;border-radius:4px">*/N * * * * /usr/local/bin/tu-script.sh</code></p>',
+    'Cerrar', function(){ zModal.close('add-scheduler-modal'); }
+  );
+}
+window.abrirAddScheduler = abrirAddScheduler
+
+cargarScheduler();
+</script>

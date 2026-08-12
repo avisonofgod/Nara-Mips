@@ -1,0 +1,97 @@
+<div class="page-header">
+  <h3 class="page-title">DHCP Leases</h3>
+  <div class="page-actions">
+    <input id="lease-search" class="form-input" type="text" placeholder="🔍 Buscar por IP / MAC / Hostname..." style="max-width:260px" oninput="renderLeases()"/>
+    <button class="btn-ghost" onclick="cargarDhcpLeases()" title="Actualizar">Actualizar</button>
+  </div>
+</div>
+<div id="dhcp-leases-content" class="page-content">
+  <div class="loading">Cargando leases...</div>
+</div>
+
+<script>
+var _leases = [];
+var _sortIpAsc = true;
+
+function ipToNum(ip){
+  var p = String(ip||'').split('.');
+  if(p.length !== 4) return -1;
+  return (+p[0]*16777216) + (+p[1]*65536) + (+p[2]*256) + (+p[3]);
+}
+
+function renderLeases(){
+  var c = document.getElementById('dhcp-leases-content');
+  if(!c) return;
+  var q = (document.getElementById('lease-search') ? document.getElementById('lease-search').value : '').trim().toLowerCase();
+  var list = _leases;
+  if(q){
+    list = list.filter(function(l){
+      return (l.ip||'').toLowerCase().indexOf(q) >= 0 ||
+             (l.mac||'').toLowerCase().indexOf(q) >= 0 ||
+             (l.hostname||'').toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  // Sort por IP: click en el header alterna asc/desc; por defecto asc
+  list = list.slice().sort(function(a,b){ return (ipToNum(a.ip) - ipToNum(b.ip)) * (_sortIpAsc ? 1 : -1); });
+
+  if(list.length === 0){
+    c.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">'+(q ? 'Sin resultados para "'+escHtml(q)+'"' : 'No hay leases activos')+'</div></div>';
+    return;
+  }
+  var rows = '';
+  var now = Math.floor(Date.now() / 1000);
+  for(var i=0;i<list.length;i++){
+    var l = list[i];
+    var expiresRaw = l.expires || l.expires_at || l.lease_end || l.remaining || '0';
+    var expiresNum = parseInt(expiresRaw);
+    var expiresText = '—';
+    if(expiresNum === 0) expiresText = '∞ (permanente)';
+    else if(expiresNum > now){
+      var secs = expiresNum - now;
+      if(secs < 60) expiresText = secs + 's';
+      else if(secs < 3600) expiresText = Math.floor(secs/60) + 'm';
+      else if(secs < 86400) expiresText = Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
+      else expiresText = Math.floor(secs/86400) + 'd ' + Math.floor((secs%86400)/3600) + 'h';
+    } else expiresText = '<span style="color:var(--accent-red)">expirado</span>';
+    rows += '<tr>'+
+      '<td>'+escHtml(l.ip||l.address||'')+'</td>'+
+      '<td>'+escHtml(l.mac||l.mac_address||'')+'</td>'+
+      '<td>'+(l.hostname ? escHtml(l.hostname) : '<span class="text-muted">—</span>')+'</td>'+
+      '<td>'+expiresText+'</td>'+
+    '</tr>';
+  }
+  c.innerHTML = '<div class="table-wrap"><table>'+
+    '<tr><th style="cursor:pointer" onclick="toggleSortIp()" title="Ordenar por IP">IP '+( _sortIpAsc ? '▲' : '▼')+'</th><th>MAC</th><th>HOSTNAME</th><th>EXPIRES</th></tr>'+
+    rows+'</table></div>'+
+    '<div class="text-muted" style="margin-top:0.4rem;font-size:0.8rem">'+list.length+' / '+_leases.length+' leases</div>';
+}
+
+function toggleSortIp(){
+  _sortIpAsc = !_sortIpAsc;
+  renderLeases();
+}
+window.toggleSortIp = toggleSortIp;
+
+function cargarDhcpLeases(){
+  var c = document.getElementById('dhcp-leases-content');
+  if(!c) return;
+  var ctrl = new AbortController();
+  var tid = setTimeout(function(){ctrl.abort();},10000);
+  fetch("/api/dhcp-leases?_="+Date.now(),{signal:ctrl.signal})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      clearTimeout(tid);
+      // El API devuelve [entries, {rows:N}]
+      var leases = Array.isArray(d) && Array.isArray(d[0]) ? d[0] : (Array.isArray(d) ? d : []);
+      _leases = leases;
+      renderLeases();
+    })
+    .catch(function(e){
+      clearTimeout(tid);
+      c.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Error</div><div class="empty-desc">'+(e.message||'timeout')+'</div></div>';
+    });
+}
+window.cargarDhcpLeases = cargarDhcpLeases;
+window.renderLeases = renderLeases;
+cargarDhcpLeases();
+</script>

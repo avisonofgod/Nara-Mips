@@ -1,0 +1,233 @@
+<div class="page-header">
+  <h3 class="page-title">🔌 Bridge Ports</h3>
+  <div style="display:flex;gap:0.5rem">
+    <span class="muted" style="font-size:0.85rem">Puertos miembros de bridge</span>
+    <button class="btn-success btn-sm" onclick="mostrarAddPort()">+ Add Port</button>
+  </div>
+</div>
+
+<div id="bridgePortsContainer" class="bridge-ports-table-wrap">
+  <div class="page-empty">Cargando...</div>
+</div>
+
+<div id="bridgePortsVlanModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePortVlanModal()">
+  <div class="modal-box modal-md" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="bridgePortsModalTitle">VLANs del Puerto</h3>
+      <button class="modal-close" onclick="closePortVlanModal()">✕</button>
+    </div>
+    <div id="bridgePortsModalBody" class="modal-body" style="padding:16px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePortVlanModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarBridgePortVlans()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.bridge-ports-table-wrap {
+  padding:12px;
+}
+.bridge-ports-table {
+  width:100%;
+  border-collapse:collapse;
+}
+.bridge-ports-table th {
+  text-align:left;
+  font-weight:600;
+  color:var(--clr-text-muted);
+  padding:10px 12px;
+  border-bottom:1px solid var(--clr-border-strong);
+}
+.bridge-ports-table td {
+  padding:8px 12px;
+  border-bottom:1px solid var(--clr-border-weak);
+  vertical-align:middle;
+}
+.bridge-ports-table tr:hover td {
+  background:var(--clr-hover);
+}
+.badge-tagged { color:var(--clr-text-muted); padding:1px 8px; border-radius:10px; font-size:0.75rem; margin:1px; display:inline-block; border:1px solid var(--clr-border-strong); }
+.badge-untagged { background:var(--accent-blue); color:#fff; padding:1px 8px; border-radius:10px; font-size:0.75rem; margin:1px; display:inline-block; }
+.badge-pvid { background:#f59e0b; color:#1e293b; padding:1px 8px; border-radius:10px; font-size:0.75rem; margin:1px; display:inline-block; }
+.vlan-checkbox-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+  gap:8px;
+}
+.vlan-checkbox-item {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 8px;
+  background:#0f172a;
+  border-radius:6px;
+  font-size:0.85rem;
+}
+.vlan-checkbox-item input[type="radio"] { margin:0; }
+.vlan-checkbox-item select { margin-left:auto; font-size:0.75rem; padding:2px 4px; background:#1e293b; color:#e2e8f0; border:1px solid #334155; border-radius:4px; }
+</style>
+
+<script>
+var bridgePortsEditPort = null;
+var bridgePortsVlanData = null;
+var bridgePortsAllVids = [];
+
+function cargarBridgePorts(){
+  fetch('/api/bridge/ports').then(function(r){return r.json();}).then(function(data){
+    var container = document.getElementById('bridgePortsContainer');
+    if(!data || !data.length){
+      container.innerHTML = '<div class="page-empty">Sin puertos en bridges</div>';
+      return;
+    }
+    var filtered = data.filter(function(p){ return p.port.indexOf('BridgeLan')<0 && p.port.indexOf('bridge')<0; });
+    if(!filtered.length) filtered = data;
+    bridgePortsVlanData = filtered;
+    // Coleccionar todos los VIDs unicos
+    var allVids = {};
+    for(var i=0;i<filtered.length;i++){
+      var vlans = filtered[i].vlans||[];
+      for(var j=0;j<vlans.length;j++){
+        allVids[parseInt(vlans[j].vid)] = true;
+      }
+    }
+    bridgePortsAllVids = Object.keys(allVids).sort(function(a,b){return a-b;});
+    renderBridgePortsTable(filtered);
+  }).catch(function(e){
+    document.getElementById('bridgePortsContainer').innerHTML = '<div class="page-empty" style="color:red">Error: '+escHtml(e.message)+'</div>';
+  });
+}
+
+function renderBridgePortsTable(ports){
+  if(!ports || !ports.length){
+    document.getElementById('bridgePortsContainer').innerHTML = '<div class="page-empty">Sin puertos</div>';
+    return;
+  }
+  var h = '<table class="bridge-ports-table"><tr><th>Puerto</th><th>VLANs</th></tr>';
+  for(var i=0;i<ports.length;i++){
+    var p = ports[i];
+    var vlans = (p.vlans||[]).sort(function(a,b){return parseInt(a.vid)-parseInt(b.vid);});
+    var badges = '';
+    for(var j=0;j<vlans.length;j++){
+      var v = vlans[j];
+      var cls = v.untagged ? 'badge-untagged' : 'badge-tagged';
+      var label = v.untagged ? 'U' : 'T';
+      var pvid = v.pvid ? ' <span class="badge-pvid">PVID</span>' : '';
+      badges += '<span class="'+cls+'">VLAN '+v.vid+pvid+'</span> ';
+    }
+    if(!badges) badges = '<span class="muted">—</span>';
+    h += '<tr><td><strong>'+escHtml(p.port)+'</strong></td><td>'+badges+'</td></tr>';
+  }
+  h += '</table>';
+  document.getElementById('bridgePortsContainer').innerHTML = h;
+}
+
+function editarBridgePort(port){
+  bridgePortsEditPort = port;
+  // Encontrar el puerto en datos
+  var portData = null;
+  for(var i=0;i<bridgePortsVlanData.length;i++){
+    if(bridgePortsVlanData[i].port === port){
+      portData = bridgePortsVlanData[i];
+      break;
+    }
+  }
+  if(!portData) return;
+  document.getElementById('bridgePortsModalTitle').textContent = 'VLANs — '+port;
+  var vlansMap = {};
+  for(var j=0;j<(portData.vlans||[]).length;j++){
+    var v = portData.vlans[j];
+    vlansMap[parseInt(v.vid)] = {tagged: v.tagged||false, untagged: v.untagged||false, pvid: v.pvid||false};
+  }
+  var h = '<div class="vlan-checkbox-grid">';
+  for(var k=0;k<bridgePortsAllVids.length;k++){
+    var vid = bridgePortsAllVids[k];
+    var vstate = vlansMap[vid] || {tagged:false, untagged:false, pvid:false};
+    var sel = vstate.untagged ? 'untagged' : (vstate.pvid ? 'pvid' : 'tagged');
+    h += '<div class="vlan-checkbox-item">'+
+      '<span>VLAN '+vid+'</span>'+
+      '<select id="vlan_sel_'+vid+'" onchange="bridgePortVlanChange('+vid+',this.value)">'+
+        '<option value="tagged"'+(sel==='tagged'?' selected':'')+'>Tagged</option>'+
+        '<option value="untagged"'+(sel==='untagged'?' selected':'')+'>Untagged</option>'+
+        '<option value="pvid"'+(sel==='pvid'?' selected':'')+'>PVID</option>'+
+        '<option value="none"'+(sel==='none'?' selected':'')+'>Sin VLAN</option>'+
+      '</select></div>';
+  }
+  h += '</div>';
+  document.getElementById('bridgePortsModalBody').innerHTML = h;
+  document.getElementById('bridgePortsVlanModal').style.display = 'flex';
+}
+
+function bridgePortVlanChange(vid, val){ /* placeholder para futuro estado local */ }
+
+function guardarBridgePortVlans(){
+  if(!bridgePortsEditPort) return;
+  var vlansArr = [];
+  for(var k=0;k<bridgePortsAllVids.length;k++){
+    var vid = bridgePortsAllVids[k];
+    var sel = document.getElementById('vlan_sel_'+vid);
+    if(!sel) continue;
+    var val = sel.value;
+    if(val==='none') continue;
+    vlansArr.push({
+      vid: parseInt(vid),
+      tagged: val==='tagged',
+      untagged: val==='untagged',
+      pvid: val==='pvid'
+    });
+  }
+  fetch('/api/bridge/ports/configure', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({port: bridgePortsEditPort, vlans: vlansArr})
+  }).then(function(r){return r.json();}).then(function(data){
+    if(data.success){
+      closePortVlanModal();
+      cargarBridgePorts(); // recargar
+    } else {
+      alert('Error: '+(data.error||'desconocido'));
+    }
+  }).catch(function(e){
+    alert('Error: '+e.message);
+  });
+}
+
+function closePortVlanModal(){
+  document.getElementById('bridgePortsVlanModal').style.display = 'none';
+}
+
+window.cargarBridgePorts = cargarBridgePorts;
+window.closePortVlanModal = closePortVlanModal;
+
+function mostrarAddPort(){
+  // Cargar bridges disponibles
+  fetch('/api/bridges').then(function(r){return r.json();}).then(function(bridges){
+    var bridgeOpts = '<option value="">— Seleccionar bridge —</option>';
+    for(var i=0;i<bridges.length;i++) bridgeOpts += '<option value="'+escHtml(bridges[i].name)+'">'+escHtml(bridges[i].name)+'</option>';
+    // Cargar interfaces disponibles (sin master/bridge)
+    fetch('/api/interfaces').then(function(r){return r.json();}).then(function(ifaces){
+      var portOpts = '<option value="">— Seleccionar interfaz —</option>';
+      for(var i=0;i<ifaces.length;i++){
+        var n = ifaces[i].name || ifaces[i].ifname || '';
+        if(!n || n.indexOf('bridge')>=0 || n.indexOf('.')>=0 || n.indexOf('ppp')>=0 || n.indexOf('wg')>=0) continue;
+        portOpts += '<option value="'+escHtml(n)+'">'+escHtml(n)+'</option>';
+      }
+      var html = '<div class="form-group"><label class="form-label">Bridge</label><select id="addport-bridge" class="form-input">'+bridgeOpts+'</select></div>'+
+        '<div class="form-group"><label class="form-label">Puerto</label><select id="addport-port" class="form-input">'+portOpts+'</select></div>';
+      zModal.show('add-port-modal', '➕ Add Port to Bridge', html, 'Agregar', function(){
+        var bridge = document.getElementById('addport-bridge').value;
+        var port = document.getElementById('addport-port').value;
+        if(!bridge || !port){ alert('Selecciona bridge y puerto'); return; }
+        fetch('/api/bridge/ports/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bridge:bridge, port:port})})
+        .then(function(r){return r.json();})
+        .then(function(d){
+          if(d.ok){ zModal.close('add-port-modal'); cargarBridgePorts(); }
+          else alert('Error: '+(d.error||'desconocido'));
+        }).catch(function(e){alert('Error: '+e.message);});
+      }, {size:'md', cols:1});
+    }).catch(function(){alert('Error cargando interfaces');});
+  }).catch(function(){alert('Error cargando bridges');});
+}
+
+cargarBridgePorts();
+</script>

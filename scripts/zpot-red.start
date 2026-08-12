@@ -1,0 +1,40 @@
+#!/bin/sh
+# Arrancado por /etc/init.d/local al boot
+# Zpot-RS se encarga de nftables, QoS, MWAN, sessiones
+# Solo necesario: interfaces + ip_forward + start zpot + pppoe-server
+#
+# 2026-08-08: pool PPPoE parametrizado desde /etc/zpot/ppp-radius.json
+# (antes -R 192.168.20.100 -N 100 hardcodeado). El pool es provisional:
+# la IP FINAL del cliente la asigna FreeRADIUS (Framed-IP-Address).
+
+# Interfaces (respaldo por si /etc/network/interfaces falla)
+ip addr add 192.168.10.1/24 dev eth3 2>/dev/null || true
+ip addr add 192.168.3.105/24 dev eth1 2>/dev/null || true
+ip link set eth3 up 2>/dev/null || true
+
+# ip_forward
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+# Pool PPPoE desde la config (fallback al provisional .100 + 100)
+POOL_START=192.168.20.100
+POOL_END=192.168.20.199
+if [ -f /etc/zpot/ppp-radius.json ]; then
+  S=$(grep -o '"pool_start"[^,]*' /etc/zpot/ppp-radius.json | grep -o '[0-9.]*' | head -1)
+  E=$(grep -o '"pool_end"[^,]*' /etc/zpot/ppp-radius.json | grep -o '[0-9.]*' | head -1)
+  [ -n "$S" ] && POOL_START="$S"
+  [ -n "$E" ] && POOL_END="$E"
+fi
+S_LAST=$(echo "$POOL_START" | cut -d. -f4)
+E_LAST=$(echo "$POOL_END" | cut -d. -f4)
+COUNT=$((E_LAST - S_LAST + 1))
+[ "$COUNT" -lt 1 ] && COUNT=100
+
+# PPPoE server (solo servicio; arranca ACTIVADO junto con Zpot)
+# pgrep -f con [c]orchete para no encontrarse a si mismo
+pgrep -f "[p]ppoe-server -I" >/dev/null || \
+  setsid /usr/sbin/pppoe-server -I eth3.881 -N "$COUNT" -m 1412 \
+    -q /usr/sbin/pppd -L 192.168.20.1 -R "$POOL_START" >/dev/null 2>&1 &
+
+# Zpot hace todo: nftables, MWAN, dnsmasq gestion, sessiones
+# OJO: pidof zpot falla (comm truncado "./target/rel") -> usar pgrep -f
+pgrep -f "[t]arget/release/zpot" >/dev/null || nohup /root/zpot-rs/target/release/zpot > /dev/null 2>&1 &

@@ -1,0 +1,95 @@
+<div class="page-header">
+  <h3 class="page-title">📜 Scripts</h3>
+  <button class="btn btn-primary" onclick="abrirAddScript()">+ Add Script</button>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Name</th><th>Path</th><th>Policy</th><th>Last Run</th><th>Run Count</th><th>Source</th><th></th>
+  </tr>
+  <tbody id="scripts-tbody"><tr><td colspan="7" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+var scripts = [];
+
+function scriptRow(x, i){
+  var srcPreview = x.src && x.src.length > 60 ? x.src.slice(0,60)+'...' : (x.src||'-');
+  var icon = x.name.includes('watchdog') ? '🛡️' : x.name.includes('setup') ? '⚙️' : '📜';
+  return '<tr>'+
+    '<td style="font-weight:600;color:var(--clr-text);font-family:monospace;font-size:.85rem">'+icon+' '+x.name+'</td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:.7rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+x.path+'</td>'+
+    '<td><span class="badge" style="background:var(--clr-border);color:var(--accent-purple);border:1px solid #a78bfa66;font-size:.7rem">'+x.policy+'</span></td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:.75rem">'+x.last_run+'</td>'+
+    '<td style="font-family:monospace;color:var(--accent-amber);text-align:right;font-size:.8rem">'+x.runs.toLocaleString()+'</td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:.7rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+srcPreview+'</td>'+
+    '<td style="white-space:nowrap">'+
+      '<button class="btn-ghost btn-sm" onclick="runScript('+i+')" style="font-size:0.8rem" title="Ejecutar">▶️</button> '+
+      '<button class="btn-ghost btn-sm" onclick="viewScript('+i+')" style="font-size:0.8rem" title="Ver">📄</button>'+
+    '</td>'+
+  '</tr>';
+}
+
+function renderScripts(data){
+  scripts = data||[];
+  zTable.render('scripts-tbody', scripts, scriptRow);
+}
+window.renderScripts = renderScripts
+
+function cargarScripts(){
+  fetch('/api/system/scripts')
+    .then(function(r){ return r.json(); })
+    .then(function(data){ renderScripts(data); })
+    .catch(function(e){
+      document.getElementById('scripts-tbody').innerHTML = '<tr><td colspan="7" class="page-empty">Error al cargar: '+e.message+'</td></tr>';
+    });
+}
+window.cargarScripts = cargarScripts
+
+function runScript(idx){
+  var s = scripts[idx];
+  if(!s) return;
+  var isReboot = /reboot/i.test(s.name);
+  var msg = isReboot
+    ? '⚠️⚠️ REINICIARÁ TODO EL SERVIDOR ALPINE ⚠️⚠️\n\nSe desconectarán TODOS los clientes (PPP + hotspot) y el panel.\nEl sistema volverá solo al boot (zpot-red.start).\n\n¿REALMENTE quieres ejecutar "'+s.name+'"?'
+    : 'Ejecutar "'+s.name+'" en el servidor?';
+  if(!confirm(msg)) return;
+  if(isReboot && !confirm('CONFIRMACIÓN FINAL: este comando hace reboot del sistema operativo. ¿Continuar?')) return;
+  fetch('/api/command', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({cmd:'sh '+s.path})
+  }).then(function(r){ return r.json(); }).then(function(res){
+    alert('Script ejecutado:\n'+JSON.stringify(res.output||res));
+    cargarScripts();
+  }).catch(function(e){ alert('Error: '+e.message); });
+}
+
+function viewScript(idx){
+  var s = scripts[idx];
+  if(!s) return;
+  fetch('/api/command', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({cmd:'head -50 '+s.path})
+  }).then(function(r){ return r.json(); }).then(function(res){
+    var output = res.output||JSON.stringify(res);
+    zModal.show('view-script-modal', '📄 '+s.name,
+      '<pre style="background:#0a0f16;color:#e2e8f0;padding:1rem;border-radius:8px;font-size:.8rem;max-height:400px;overflow:auto;white-space:pre-wrap">'+output+'</pre>',
+      'Cerrar', function(){ zModal.close('view-script-modal'); },
+      {size:'lg'}
+    );
+  });
+}
+
+function abrirAddScript(){
+  zModal.show('add-script-modal', '📜 Add Script',
+    '<p style="color:var(--clr-text-muted)">Crea el script en /usr/local/bin/ y agrega una entrada en /etc/crontabs/root manualmente.</p>',
+    'Cerrar', function(){ zModal.close('add-script-modal'); }
+  );
+}
+window.abrirAddScript = abrirAddScript
+
+cargarScripts();
+</script>

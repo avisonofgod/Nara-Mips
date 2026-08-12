@@ -1,0 +1,203 @@
+<div class="page-header">
+  <h3 class="page-title">📡 PPP · RADIUS Auth (NAS)</h3>
+  <span id="pppRadiusBadge" class="badge badge-secondary">Estado: cargando...</span>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-body">
+    <p style="margin:0 0 12px 0;color:var(--clr-text-muted);font-size:.85rem">
+      Autentica los clientes PPPoE contra el servidor RADIUS externo usando el plugin
+      <code>radius.so</code> de pppd (Alpine actúa como NAS). Los usuarios y sus
+      velocidades se gestionan en el RADIUS; Zpot solo genera la config NAS y aplica
+      el QoS desde las VSAs del Access-Accept (mismo formato que hotspot:
+      <code>rate_up/rate_down ceil_up/ceil_down</code>).
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div id="pppRadiusForm">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Habilitar RADIUS</label>
+          <select id="pr-enabled" class="form-input">
+            <option value="true">Si</option>
+            <option value="false">No</option>
+          </select>
+          <small class="form-hint">Si = pppd autentica contra RADIUS (plugin radius.so). No = chap-secrets local (actual).</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Servidor RADIUS</label>
+          <select id="pr-server" class="form-input">
+            <option value="">Cargando...</option>
+          </select>
+          <small class="form-hint">Selecciona el servidor ya agregado en RADIUS → Servers. Se usa su IP/puertos/secret/timeout/retries.</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">NAS-Identifier</label>
+          <input type="text" id="pr-nasid" class="form-input" placeholder="zpot-nas">
+          <small class="form-hint">Opcional (attr 32). Si se define, no se envía NAS-IP-Address.</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">NAS-IP-Address</label>
+          <input type="text" id="pr-nasip" class="form-input" placeholder="192.168.20.1">
+          <small class="form-hint">IP del NAS visible para el RADIUS (default: gateway PPPoE).</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fallback local</label>
+          <select id="pr-fallback" class="form-input">
+            <option value="true">Si (radius,local)</option>
+            <option value="false">No (radius only)</option>
+          </select>
+          <small class="form-hint">Si RADIUS no responde (timeout), intenta chap-secrets local. Recomendado Si al principio.</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Accounting RADIUS</label>
+          <select id="pr-acct" class="form-input">
+            <option value="true">Si</option>
+            <option value="false">No</option>
+          </select>
+          <small class="form-hint">Envía Acct-Start/Stop al puerto 1813 del servidor.</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pool IP (inicio)</label>
+          <input type="text" id="pr-pool-start" class="form-input" placeholder="192.168.20.2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pool IP (fin)</label>
+          <input type="text" id="pr-pool-end" class="form-input" placeholder="192.168.20.200">
+        </div>
+        <div class="form-group">
+          <label class="form-label">DNS 1</label>
+          <input type="text" id="pr-dns1" class="form-input" placeholder="192.168.20.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">DNS 2</label>
+          <input type="text" id="pr-dns2" class="form-input" placeholder="8.8.8.8">
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn-primary" onclick="pppRadiusSave(false)" style="padding:10px 20px">💾 Guardar config</button>
+        <button class="btn-primary" onclick="pppRadiusSave(true)" style="padding:10px 20px;background:#dc2626">🔄 Guardar + Reiniciar PPPoE</button>
+        <span id="pppRadiusMsg" style="font-size:.85rem"></span>
+      </div>
+      <div style="margin-top:10px;font-size:.8rem;color:#f59e0b" id="pppRadiusWarn"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div class="card-body">
+    <h4 style="margin:0 0 10px 0;color:var(--accent-amber)">Archivos generados (estado en disco)</h4>
+    <div id="pppRadiusStatus" style="font-family:monospace;font-size:.8rem;line-height:1.7;white-space:pre-wrap">Cargando...</div>
+  </div>
+</div>
+
+<script>
+function cargarPppRadius(){
+  cargarPppRadiusConfig();
+  cargarPppRadiusStatus();
+}
+
+function cargarPppRadiusConfig(){
+  fetch('/api/ppp/radius').then(function(r){ return r.json(); }).then(function(d){
+    var cfg = d.config || {};
+    document.getElementById('pr-enabled').value = cfg.enabled ? 'true' : 'false';
+    document.getElementById('pr-nasid').value = cfg.nas_identifier || '';
+    document.getElementById('pr-nasip').value = cfg.nas_ip || '192.168.20.1';
+    document.getElementById('pr-fallback').value = cfg.fallback_local ? 'true' : 'false';
+    document.getElementById('pr-acct').value = cfg.accounting ? 'true' : 'false';
+    document.getElementById('pr-pool-start').value = cfg.pool_start || '192.168.20.2';
+    document.getElementById('pr-pool-end').value = cfg.pool_end || '192.168.20.200';
+    document.getElementById('pr-dns1').value = cfg.dns1 || '192.168.20.1';
+    document.getElementById('pr-dns2').value = cfg.dns2 || '8.8.8.8';
+
+    var sel = document.getElementById('pr-server');
+    var servers = d.servers || [];
+    var opts = '<option value="">-- seleccionar --</option>';
+    for(var i=0;i<servers.length;i++){
+      var s = servers[i];
+      var selAttr = (s.name === cfg.server_name) ? ' selected' : '';
+      opts += '<option value="'+escAttr(s.name)+'"'+selAttr+'>'+escHtml(s.name)+' ('+escHtml(s.ip)+':'+s.authPort+')</option>';
+    }
+    sel.innerHTML = opts;
+
+    var badge = document.getElementById('pppRadiusBadge');
+    badge.className = 'badge ' + (cfg.enabled ? 'badge-success' : 'badge-secondary');
+    badge.textContent = cfg.enabled ? '● RADIUS activo' : '○ RADIUS desactivado';
+
+    var warn = document.getElementById('pppRadiusWarn');
+    if(cfg.enabled){
+      warn.innerHTML = '⚠️ Con RADIUS activo, la pestaña "Secrets" deja de usarse para autenticar (chap-secrets se ignora si fallback=No). Los usuarios se gestionan en el servidor RADIUS externo.';
+    } else {
+      warn.innerHTML = '';
+    }
+  }).catch(function(e){
+    document.getElementById('pppRadiusMsg').textContent = 'Error cargando config: '+e.message;
+  });
+}
+
+function cargarPppRadiusStatus(){
+  fetch('/api/ppp/radius/status').then(function(r){ return r.json(); }).then(function(d){
+    var h = '';
+    h += '— pppoe-server-options —\n' + (d.pppoe_options || '(vacío)');
+    h += '\n\n— radiusclient.conf —\n' + (d.radiusclient_conf || '(vacío)');
+    h += '\n\n— radiusclient/servers —\n' + (d.radiusclient_servers || '(vacío)');
+    document.getElementById('pppRadiusStatus').textContent = h;
+  }).catch(function(e){
+    document.getElementById('pppRadiusStatus').textContent = 'Error: '+e.message;
+  });
+}
+
+function pppRadiusSave(restart){
+  var data = {
+    enabled: document.getElementById('pr-enabled').value === 'true',
+    server_name: document.getElementById('pr-server').value,
+    nas_identifier: document.getElementById('pr-nasid').value.trim(),
+    nas_ip: document.getElementById('pr-nasip').value.trim(),
+    fallback_local: document.getElementById('pr-fallback').value === 'true',
+    accounting: document.getElementById('pr-acct').value === 'true',
+    pool_start: document.getElementById('pr-pool-start').value.trim(),
+    pool_end: document.getElementById('pr-pool-end').value.trim(),
+    dns1: document.getElementById('pr-dns1').value.trim(),
+    dns2: document.getElementById('pr-dns2').value.trim()
+  };
+  if(!data.server_name){
+    alert('Selecciona un servidor RADIUS');
+    return;
+  }
+  if(restart){
+    if(!confirm('⚠️ Esto reiniciará el servidor PPPoE y desconectará TODAS las sesiones PPP activas. ¿Continuar?')) return;
+  }
+  var msg = document.getElementById('pppRadiusMsg');
+  msg.textContent = 'Guardando...';
+  fetch('/api/ppp/radius', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(!d.ok){ msg.textContent = 'Error: '+(d.error||JSON.stringify(d)); return; }
+    // Aplicar (regenera archivos; restart solo si se pidió)
+    return fetch('/api/ppp/radius/apply', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({restart: restart})
+    }).then(function(r){ return r.json(); });
+  }).then(function(d){
+    if(!d) return;
+    if(!d.ok){ msg.textContent = 'Error apply: '+(d.error||JSON.stringify(d)); return; }
+    msg.textContent = restart
+      ? '✅ Aplicado y PPPoE reiniciado ('+(d.active_before||0)+' sesiones activas antes).'
+      : '✅ Config guardada y archivos regenerados. Reinicia PPPoE cuando quieras (botón rojo).';
+    cargarPppRadiusStatus();
+    cargarPppRadiusConfig();
+  }).catch(function(e){
+    msg.textContent = 'Error: '+e.message;
+  });
+}
+
+window.cargarPppRadius = cargarPppRadius;
+window.pppRadiusSave = pppRadiusSave;
+cargarPppRadius();
+</script>

@@ -1,0 +1,68 @@
+<div class="page-header">
+  <h3>🍪 Cookies</h3>
+  <button class="btn-ghost" onclick="cargarCookies()">🔄 Refresh</button>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Usuario</th>
+    <th>MAC</th>
+    <th>Expira en</th>
+    <th>Acción</th>
+  </tr>
+  <tbody id="cookies-tbody"><tr><td colspan="4" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+function cargarCookies(){
+  var tbody = document.getElementById('cookies-tbody');
+  tbody.innerHTML = '<tr><td colspan="4" class="page-empty">Cargando...</td></tr>';
+  fetch('/api/hotspot/cookies')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data || data.length===0){
+        tbody.innerHTML = '<tr><td colspan="4" class="page-empty">Sin cookies almacenadas</td></tr>';
+        return;
+      }
+      var h = '';
+      for(var i=0;i<data.length;i++){
+        var c = data[i];
+        var user = c.username || '';
+        var mac = c.mac || '';
+        var remaining = c.remaining || '—';
+        var displayMac = mac || '—';
+        h += '<tr>'+
+          '<td style="font-weight:600">'+escHtml(user)+'</td>'+
+          '<td style="font-family:monospace;color:var(--clr-text-muted)">'+escHtml(displayMac)+'</td>'+
+          '<td style="color:var(--clr-text-muted)">'+escHtml(remaining)+'</td>'+
+          '<td><button class="btn-danger btn-sm" onclick="eliminarCookie(\''+escHtml(user)+'\',\''+escHtml(mac)+'\')">🗑 Delete</button></td>'+
+          '</tr>';
+      }
+      tbody.innerHTML = h;
+    })
+    .catch(function(e){
+      tbody.innerHTML = '<tr><td colspan="4" class="page-empty">Error: '+e.message+'</td></tr>';
+    });
+}
+
+function eliminarCookie(username,mac){
+  if(!confirm('Eliminar cookie de '+username+' ('+mac+')? El usuario debera iniciar sesion nuevamente.')) return;
+  fetch('/api/hotspot/cookies/delete',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:username,mac:mac})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.ok){
+      cargarCookies();
+    } else {
+      alert('Error al eliminar cookie');
+    }
+  })
+  .catch(function(e){
+    alert('Error: '+e.message);
+  });
+}
+</script>

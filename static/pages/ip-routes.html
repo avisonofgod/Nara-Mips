@@ -1,0 +1,138 @@
+<div class="page-header">
+  <h3 class="page-title">🗺️ Routes</h3>
+  <button class="btn-primary" onclick="mostrarAddRoute()">+ Add Route</button>
+</div>
+
+<div id="routes-content">
+  <div class="loading">Cargando rutas...</div>
+</div>
+
+<script>
+function parseRawRoute(raw){
+  var dest = '', gw = '—', iface = '', metric = '—', isDefault = false;
+  if(!raw) return {destination:dest,gateway:gw,iface:iface,metric:metric,isDefault:isDefault};
+  // default via 192.168.1.1 dev eth0 metric 202
+  // 10.7.0.0/24 dev wg0 scope link
+  var parts = raw.split(/\s+/);
+  dest = parts[0] || '';
+  isDefault = (dest === 'default');
+  for(var i=1;i<parts.length;i++){
+    if(parts[i]==='via' && parts[i+1]){ gw=parts[i+1]; i++; }
+    else if(parts[i]==='dev' && parts[i+1]){ iface=parts[i+1]; i++; }
+    else if(parts[i]==='metric' && parts[i+1]){ metric=parts[i+1]; i++; }
+  }
+  return {destination:dest,gateway:gw,iface:iface,metric:metric,isDefault:isDefault};
+}
+
+async function cargarRoutes(){
+  var c=document.getElementById('routes-content');
+  c.innerHTML='<div class="loading">Cargando rutas...</div>';
+  try{
+    var r=await fetch('/api/routes');
+    var raw=await r.json();
+    // P2: shape nuevo {"routes":[...],"rows":N} (antes array raro [routes,{rows}])
+    var data=(raw&&raw.routes)?raw.routes:(Array.isArray(raw)&&Array.isArray(raw[0])?raw[0]:(Array.isArray(raw)?raw:[]));
+    if(!data||data.length===0){
+      c.innerHTML='<div class="empty-state"><div class="empty-icon">🗺️</div><div class="empty-title">No hay rutas</div><div class="empty-action"><button class="btn-primary" onclick="mostrarAddRoute()">+ Create Route</button></div></div>';
+      return;
+    }
+    var html='<div class="table-wrap"><table><thead><tr>'+
+      '<th>Destination</th><th>Gateway</th><th>Interface</th><th>Metric</th><th></th>'+
+    '</tr></thead><tbody>';
+    for(var i=0;i<data.length;i++){
+      var x = parseRawRoute(data[i].raw||'');
+      // P2: la ruta default NO tiene boton de borrar (backend la prohibe;
+      // antes mostraba 🗑 que SIEMPRE fallaba con "dst invalido: default")
+      var acc = x.isDefault
+        ? '<span class="tx-muted">MWAN</span>'
+        : '<button class="btn-icon-danger" onclick="eliminarRoute(\''+escHtml(x.destination)+'\',\''+escHtml(x.iface)+'\')" title="Delete route">🗑</button>';
+      html+='<tr><td><code>'+escHtml(x.destination)+'</code></td><td>'+escHtml(x.gateway)+'</td><td><span class="tx-code">'+escHtml(x.iface)+'</span></td><td>'+escHtml(x.metric)+'</td>'+
+        '<td class="action-cell">'+acc+'</td></tr>';
+    }
+    html+='</tbody></table></div>';
+    c.innerHTML=html;
+  }catch(e){
+    c.innerHTML='<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Connection error</div><div class="empty-desc">'+e.message+'</div></div>';
+  }
+}
+
+function mostrarAddRoute(){
+  zModal.show('add-route-modal','➕ Add Route',addRouteForm(),'Crear',crearRoute,{size:'lg',cols:2});
+  setTimeout(function(){ cargarInterfacesRoute(); }, 100);
+}
+
+function addRouteForm(){
+  return '<div class="form-group"><label>Destination <span class="required">*</span></label>'+
+    '<input type="text" id="route-dest" class="form-input" placeholder="e.g. 192.168.100.0/24" required>'+
+    '<span class="hint">Network with CIDR (e.g. 10.0.0.0/24). La default route se gestiona desde MWAN (0.0.0.0/0 está prohibida aquí)</span></div>'+
+    '<div class="form-group"><label>Gateway</label>'+
+    '<input type="text" id="route-gw" class="form-input" placeholder="e.g. 192.168.1.1 (leave empty for direct route)">'+
+    '<span class="hint">Next-hop IP address</span></div>'+
+    '<div class="form-group"><label>Interface <span class="required">*</span></label>'+
+    '<select id="route-iface" class="form-input"></select>'+
+    '<span class="hint">Output interface</span></div>'+
+    '<div class="form-group"><label>Metric</label>'+
+    '<input type="number" id="route-metric" class="form-input" placeholder="e.g. 100 (optional)" min="1" max="9999">'+
+    '<span class="hint">Lower value = higher priority</span></div>';
+}
+
+function cargarInterfacesRoute(){
+  var sel=document.getElementById('route-iface');
+  if(!sel)return;
+  sel.innerHTML='<option value="">Select interface...</option>';
+  fetch('/api/interfaces').then(function(r){return r.json();}).then(function(data){
+    if(!data||!data.length)return;
+    for(var i=0;i<data.length;i++){
+      var opt=document.createElement('option');
+      opt.value=data[i].name;
+      opt.textContent=data[i].name+(data[i].mac?' ('+data[i].mac+')':'');
+      sel.appendChild(opt);
+    }
+  }).catch(function(){});
+}
+
+async function crearRoute(){
+  var dest=document.getElementById('route-dest').value.trim();
+  var gw=document.getElementById('route-gw').value.trim();
+  var iface=document.getElementById('route-iface').value;
+  var metric=document.getElementById('route-metric').value.trim();
+  if(!dest||!iface){
+    zModal.alert('Destination and Interface are required.');
+    return;
+  }
+  try{
+    var body={destination:dest,gateway:gw,iface:iface,metric:metric};
+    var r=await fetch('/api/routes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var data=await r.json();
+    if(data.error){
+      zModal.alert('Error: '+data.error);
+      return;
+    }
+    zModal.close();
+    cargarRoutes();
+  }catch(e){
+    zModal.alert('Connection error: '+e.message);
+  }
+}
+
+async function eliminarRoute(dest,iface){
+  if(!confirm('Delete route '+dest+' via '+iface+'?'))return;
+  try{
+    var r=await fetch('/api/routes/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({destination:dest,iface:iface})});
+    var data=await r.json();
+    if(data.error){
+      zModal.alert('Error: '+data.error);
+      return;
+    }
+    cargarRoutes();
+  }catch(e){
+    zModal.alert('Connection error: '+e.message);
+  }
+}
+
+window.mostrarAddRoute = mostrarAddRoute;
+window.cargarInterfacesRoute = cargarInterfacesRoute;
+window.crearRoute = crearRoute;
+window.eliminarRoute = eliminarRoute;
+cargarRoutes();
+</script>

@@ -1,0 +1,17 @@
+#!/bin/sh
+logger -t ppp "user $PEERNAME logged in intf $1 local $4 remote $5"
+
+# Guardar MAC del peer (calling number) para correlacion pppd<->interfaz
+# (el cmdline de pppd tiene la IP PROVISIONAL del pool, no la final;
+#  la MAC es estable y unica por CPE)
+# $6 suele venir VACIO con pppoe-server -> leer la MAC del cmdline del
+# pppd padre (/proc/$PPID/cmdline, campo "remotenumber <MAC>")
+MAC=$(tr '\0' ' ' < /proc/$PPID/cmdline 2>/dev/null | sed -E 's/.*remotenumber ([0-9a-f:]{17}).*/\1/')
+[ -z "$MAC" ] && MAC="$6"
+echo "$MAC" > /var/run/ppp-mac-$1 2>/dev/null
+
+# RADIUS activo: radattr.so escribio /var/run/radattr.$1 con las VSAs
+# --max-time 5: evita bloquear pppd si el backend cuelga
+curl -s --max-time 5 -X POST http://localhost:8081/api/ppp/qos/radius \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$PEERNAME\",\"ip\":\"$5\",\"iface\":\"$1\"}"

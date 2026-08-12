@@ -1,0 +1,10 @@
+[
+  {
+    "name": "default",
+    "login_by": "http-pap,mac-cookie",
+    "idle_timeout": 600,
+    "shared_users": 1,
+    "rate_limit": "1M/2M 2M/3M",
+    "cookie_timeout": "7d"
+  }
+]

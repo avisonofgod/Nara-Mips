@@ -1,0 +1,13 @@
+{
+  "iface": "eth3",
+  "gw": "192.168.10.1",
+  "html_dir": "/root/zpot-rs/static/hotspot",
+  "idle_timeout": 600,
+  "shared_users": 1,
+  "rate_limit": "1M/2M 2M/3M",
+  "radius": "161.97.67.63:1812",
+  "radius_secret": "85River@B",
+  "coa_enabled": true,
+  "coa_mode": "poll",
+  "coa_poll_url": "http://161.97.67.63/zpot-coa/sessions.php?secret=ZPOTCOA2026a1b2c3"
+}

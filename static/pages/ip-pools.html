@@ -1,0 +1,131 @@
+<div class="page-header">
+  <h3 class="page-title">IP Pools</h3>
+  <div class="page-actions">
+    <button class="btn-ghost" onclick="cargarPools()" title="Actualizar datos">Actualizar</button>
+    <button class="btn-primary" onclick="mostrarAddPool()">+ Add Pool</button>
+  </div>
+</div>
+<div class="notice-info">
+  <span class="notice-icon">🚫</span>
+  <span class="notice-text">Para PPPoE el pool se configura en <strong>PPP / Profiles</strong>, no aquí. Este pool es para DHCP.</span>
+</div>
+<div id="pools-content" class="page-content"><div class="loading">Cargando pools...</div></div>
+
+<script>
+function cargarPools(){
+  apiFetch('/api/pools')
+    .then(function(data){
+      var list = data[0] || [];
+      var tbody = document.getElementById('pools-content');
+      if(list.length === 0){
+        tbody.innerHTML = '<div class="page-empty">No hay pools DHCP configurados</div>';
+        return;
+      }
+      var rows = '<div class="table-wrap"><table><tr><th>INTERFACE</th><th>IP INICIAL</th><th>IP FINAL</th><th>LEASE</th><th>ACCIONES</th></tr>';
+      for(var i=0;i<list.length;i++){
+        var p = list[i];
+        var iface = (p.interface || '-').split('@')[0];
+        rows += '<tr>'+
+          '<td><span class="tx-mono">' + escHtml(iface) + '</span></td>'+
+          '<td class="tx-mono tx-weight-600" style="color:var(--accent-cyan)">' + escHtml(p.start) + '</td>'+
+          '<td class="tx-mono tx-weight-600" style="color:var(--accent-cyan)">' + escHtml(p.end) + '</td>'+
+          '<td class="tx-mono">' + escHtml(p.lease || '—') + '</td>'+
+          '<td><button class="btn-ghost btn-sm" onclick="editarPool(\'' + escHtml(p.start.replace(/'/g,"\\'")) + '\',\'' + escHtml(p.end.replace(/'/g,"\\'")) + '\',\'' + escHtml(iface.replace(/'/g,"\\'")) + '\',\'' + escHtml((p.lease||'12h').replace(/'/g,"\\'")) + '\')" title="Editar pool">✏️ Editar</button> ' +
+              '<button class="btn-icon-danger" onclick="eliminarPool(\'' + escHtml(p.start.replace(/'/g,"\\'")) + '\')" title="Eliminar pool">🗑</button></td>'+
+        '</tr>';
+      }
+      rows += '</table></div>';
+      tbody.innerHTML = rows;
+    })
+    ['catch'](function(){
+      document.getElementById('pools-content').innerHTML = '<div class="page-empty">Error cargando pools</div>';
+    });
+}
+
+window.mostrarAddPool = function(){
+  var html =
+    '<div class="span-2"><div class="form-group"><label class="form-label">IP Inicial *</label><input id="pool-start" class="form-input" type="text" placeholder="192.168.10.200" style="font-family:monospace"/><small class="form-comment">Primera IP del rango</small></div></div>'+
+    '<div class="span-2"><div class="form-group"><label class="form-label">IP Final *</label><input id="pool-end" class="form-input" type="text" placeholder="192.168.10.254" style="font-family:monospace"/><small class="form-comment">Última IP del rango</small></div></div>'+
+    '<div class="form-group"><label class="form-label">Interface</label><select id="pool-iface" class="form-input" style="font-family:monospace"><option value="">-- Sin interfaz --</option></select><small class="form-comment">Interface donde se sirve DHCP</small></div>'+
+    '<div class="form-group"><label class="form-label">Lease</label><input id="pool-lease" class="form-input" type="text" placeholder="12h" style="font-family:monospace"/><small class="form-comment">Tiempo de concesión (12h, 1d, etc)</small></div>';
+  zModal.show('add-pool-modal', 'Add Pool DHCP', html, 'Guardar', function(){
+    var start = document.getElementById('pool-start').value.trim();
+    var end = document.getElementById('pool-end').value.trim();
+    var iface = document.getElementById('pool-iface').value.trim().split('@')[0];
+    var lease = document.getElementById('pool-lease').value.trim() || '12h';
+    if(!start || !end){ alert('IP Inicial y IP Final son requeridas'); return; }
+    fetch('/api/pools', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({start:start, end:end, interface:iface, lease:lease})})
+      .then(function(r){
+        if(!r.ok){ r.text().then(function(t){ alert('Error: '+t); }); return; }
+        zModal.close('add-pool-modal');
+        cargarPools();
+      })['catch'](function(e){
+        zModal.close('add-pool-modal');
+        alert('Error de conexion: '+(e.message||'timeout'));
+      });
+  }, {size:'lg', cols:2});
+  // fetch interfaces para llenar el select
+  fetch('/api/interfaces')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var sel = document.getElementById('pool-iface');
+      if(!sel) return;
+      var opts = '<option value="">-- Sin interfaz --</option>';
+      for(var i=0;i<data.length;i++){
+        var d = data[i];
+        if(d.type === 'loopback' || d.type === 'wireguard' || d.type === 'bridge' || d.type === 'other' || d.type === 'ppp') continue;
+        opts += '<option value="'+d.name+'">'+d.name+' ('+d.type+')</option>';
+      }
+      sel.innerHTML = opts;
+    })['catch'](function(){});
+}
+
+window.editarPool = function(start, end, iface, lease){
+  var html =
+    '<div class="span-2"><div class="form-group"><label class="form-label">IP Inicial (fija, identifica el pool)</label><input id="pool-start" class="form-input" type="text" value="'+escHtml(start)+'" style="font-family:monospace" disabled/><small class="form-comment">No se puede cambiar — identifica el pool</small></div></div>'+
+    '<div class="span-2"><div class="form-group"><label class="form-label">IP Final *</label><input id="pool-end" class="form-input" type="text" value="'+escHtml(end)+'" style="font-family:monospace"/><small class="form-comment">Última IP del rango</small></div></div>'+
+    '<div class="form-group"><label class="form-label">Interface</label><select id="pool-iface" class="form-input" style="font-family:monospace"><option value="'+escHtml(iface)+'">'+escHtml(iface)+'</option></select><small class="form-comment">Interface donde se sirve DHCP</small></div>'+
+    '<div class="form-group"><label class="form-label">Lease</label><input id="pool-lease" class="form-input" type="text" value="'+escHtml(lease)+'" style="font-family:monospace"/><small class="form-comment">Tiempo de concesión (12h, 1d, etc)</small></div>';
+  zModal.show('edit-pool-modal', 'Editar Pool DHCP', html, 'Guardar', function(){
+    var nEnd = document.getElementById('pool-end').value.trim();
+    var nIface = document.getElementById('pool-iface').value.trim().split('@')[0];
+    var nLease = document.getElementById('pool-lease').value.trim() || '12h';
+    if(!nEnd){ alert('IP Final es requerida'); return; }
+    fetch('/api/pools/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({start:start, end:nEnd, interface:nIface, lease:nLease})})
+      .then(function(r){
+        if(!r.ok){ r.text().then(function(t){ alert('Error: '+t); }); return; }
+        zModal.close('edit-pool-modal');
+        cargarPools();
+      })['catch'](function(e){
+        zModal.close('edit-pool-modal');
+        alert('Error de conexion: '+(e.message||'timeout'));
+      });
+  }, {size:'lg', cols:2});
+  // fetch interfaces para el select (preselecciona la actual)
+  fetch('/api/interfaces')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var sel = document.getElementById('pool-iface');
+      if(!sel) return;
+      var opts = '<option value="">-- Sin interfaz --</option>';
+      for(var i=0;i<data.length;i++){
+        var d = data[i];
+        if(d.type === 'loopback' || d.type === 'wireguard' || d.type === 'bridge' || d.type === 'other' || d.type === 'ppp') continue;
+        var selAttr = (d.name === iface) ? ' selected' : '';
+        opts += '<option value="'+d.name+'"'+selAttr+'>'+d.name+' ('+d.type+')</option>';
+      }
+      sel.innerHTML = opts;
+    })['catch'](function(){});
+};
+
+window.eliminarPool = function(start){
+  fetch('/api/pools', {method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({start:start})})
+    .then(function(r){
+      if(!r.ok){ r.text().then(function(t){ alert('Error: '+t); }); return; }
+      cargarPools();
+    })
+    ['catch'](function(e){});
+}
+
+cargarPools();
+</script>

@@ -1,0 +1,147 @@
+<div class="page-header">
+  <h3 class="page-title">🔌 Hotspot Server</h3>
+  <button class="btn btn-primary" onclick="hs.save()">Save</button>
+</div>
+
+<div id="hs-form" style="max-width:500px">
+  <label class="form-label">Interface</label>
+  <input id="hs-iface" class="form-input" value="eth3">
+
+  <label class="form-label">Gateway IP</label>
+  <input id="hs-gw" class="form-input" value="192.168.10.1">
+
+  <label class="form-label">HTML Directory</label>
+  <input id="hs-html" class="form-input" value="/root/zpot-rs/static/hotspot">
+
+  <label class="form-label">Idle Timeout (segundos)</label>
+  <input type="number" id="hs-idle" class="form-input" value="600">
+
+  <label class="form-label">Shared Users</label>
+  <input type="number" id="hs-shared" class="form-input" value="1">
+
+  <label class="form-label">Rate Limit fallback (up/down ceil_up/ceil_down)</label>
+  <input id="hs-rate" class="form-input" value="" placeholder="1M/2M 2M/3M — si RADIUS no manda VSA">
+
+  <label class="form-label">RADIUS Server</label>
+  <select id="hs-radius" class="form-input"></select>
+
+  <label class="form-label">CoA / Desconexión remota</label>
+  <select id="hs-coa" class="form-input">
+    <option value="false">Desactivado</option>
+    <option value="true">Activado</option>
+  </select>
+
+  <label class="form-label">Modo CoA</label>
+  <select id="hs-coa-mode" class="form-input">
+    <option value="udp">WireGuard (UDP 3799 — Disconnect entrante)</option>
+    <option value="poll">Polling HTTP (RADIUS API — sin UDP entrante)</option>
+  </select>
+  <div id="hs-coa-wg-info" class="form-hint" style="font-size:0.8rem;color:#94a3b8;margin-top:4px"></div>
+
+  <label class="form-label">URL Polling (modo poll)</label>
+  <input id="hs-coa-url" class="form-input" value="" placeholder="http://161.97.67.63/zpot-coa/sessions.php?secret=...">
+</div>
+
+<script>
+function $(id){return document.getElementById(id)}
+
+function hs_autodetect(){
+  var iface = $('hs-iface').value.trim();
+  if(!iface) return;
+  fetch('/api/ip-addresses').then(function(r){return r.json()}).then(function(addresses){
+    var gw = '';
+    for(var i=0;i<addresses.length;i++){
+      if(addresses[i].interface === iface && addresses[i].family==='inet'){
+        var parts = addresses[i].address.split('/')[0].split('.');
+        if(parts.length===4) gw = parts[0]+'.'+parts[1]+'.'+parts[2]+'.1';
+        break;
+      }
+    }
+    if(gw) $('hs-gw').value = gw;
+  });
+}
+
+var hs = {
+  load: function() {
+    Promise.all([
+      fetch('/api/hotspot/server').then(function(r){return r.json().catch(function(){return null})}),
+      fetch('/api/radius/servers').then(function(r){return r.json().catch(function(){return []})}),
+    ]).then(function(results){
+      var cfg = results[0];
+      var srvs = results[1];
+
+      var selr = $('hs-radius');
+      selr.innerHTML = '<option value="">— Sin RADIUS —</option>';
+      for(var i=0;i<srvs.length;i++){
+        var s = srvs[i];
+        var val = s.ip + ':' + (s.authPort || 1812);
+        var o = document.createElement('option');
+        o.value = val;
+        o.textContent = s.name + ' (' + val + ')';
+        o.dataset.secret = s.secret || '';
+        if(cfg && cfg.radius===val) o.selected = true;
+        selr.appendChild(o);
+      }
+
+      if(cfg){
+        if(cfg.iface) $('hs-iface').value = cfg.iface;
+        if(cfg.gw) $('hs-gw').value = cfg.gw;
+        if(cfg.html_dir) $('hs-html').value = cfg.html_dir;
+        $('hs-idle').value = cfg.idle_timeout || 600;
+        $('hs-shared').value = cfg.shared_users || 1;
+        $('hs-rate').value = cfg.rate_limit || '';
+        if(cfg.radius) $('hs-radius').value = cfg.radius;
+        $('hs-coa').value = cfg.coa_enabled ? 'true' : 'false';
+        $('hs-coa-mode').value = cfg.coa_mode || 'udp';
+        $('hs-coa-url').value = cfg.coa_poll_url || '';
+        // Mostrar IP WireGuard detectada (destino del Disconnect en modo udp)
+        var wgInfo = $('hs-coa-wg-info');
+        if(cfg.wg_ip){
+          wgInfo.textContent = '🔒 Disconnect debe llegar a: ' + cfg.wg_ip + ':3799 (VPN WireGuard)';
+        } else {
+          wgInfo.textContent = '⚠️ Sin interfaz WireGuard detectada — el modo UDP requiere VPN';
+        }
+      }
+
+      hs_autodetect();
+    }).catch(function(e){
+      console.error('hs.load error:', e);
+    });
+  },
+  save: function(){
+    var radSel = $('hs-radius');
+    var radOpt = radSel.options[radSel.selectedIndex];
+    var body = {
+      iface: $('hs-iface').value.trim(),
+      gw: $('hs-gw').value,
+      html_dir: $('hs-html').value,
+      idle_timeout: parseInt($('hs-idle').value) || 600,
+      shared_users: parseInt($('hs-shared').value) || 1,
+      rate_limit: $('hs-rate').value.trim(),
+      radius: radSel.value,
+      radius_secret: radOpt ? (radOpt.dataset.secret || '') : '',
+      coa_enabled: $('hs-coa').value === 'true',
+      coa_mode: $('hs-coa-mode').value,
+      coa_poll_url: $('hs-coa-url').value.trim(),
+    };
+    fetch('/api/hotspot/server', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(function(r){
+      if(r.status=='ok') showMsg('Guardado'); else showMsg('Error: '+JSON.stringify(r));
+    });
+  }
+};
+function showMsg(msg){
+  var el = document.getElementById('hs-msg');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'hs-msg';
+    el.style.cssText = 'padding:8px 12px;border-radius:6px;margin-top:8px;font-size:0.85rem';
+    document.getElementById('hs-form').appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = msg.startsWith('Error') ? '#3b1219' : '#0d2818';
+  el.style.color = msg.startsWith('Error') ? '#ef4444' : '#22c55e';
+  setTimeout(function(){ el.textContent = ''; el.style.background = ''; }, 3000);
+}
+hs.load();
+</script>

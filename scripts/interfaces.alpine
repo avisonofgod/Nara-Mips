@@ -1,0 +1,18 @@
+# Config generada por Zpot-RS
+# Persistente post-reboot
+
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.168.2.102/24
+
+auto eth1
+iface eth1 inet static
+    address 192.168.3.105/24
+
+auto wg0
+iface wg0 inet manual
+    pre-up wg-quick up wg0
+    post-down wg-quick down wg0

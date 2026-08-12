@@ -1,0 +1,20 @@
+#!/bin/sh
+# ip-down — se ejecuta cuando pppd cierra una conexion PPP
+# $1 = interfaz (pppN), $5 = peer IP
+
+# 1. Limpiar QoS al desconectarse
+curl -s -X POST http://localhost:8081/api/ppp/qos/cleanup \
+  -H "Content-Type: application/json" \
+  -d "{\"ip\":\"$5\",\"iface\":\"$1\"}"
+
+# 2. Eliminar interfaz PPP del kernel para evitar zombies
+#    (kernel circular dep: PPP unit ↔ net_device impide destruccion automatica)
+STDERR=$(ip link delete dev "$1" 2>&1)
+EXITCODE=$?
+if [ $EXITCODE -eq 0 ]; then
+  logger -t ip-down "Interfaz $1 eliminada OK"
+else
+  logger -t ip-down "ERROR: No se pudo eliminar $1 (exit=$EXITCODE) — $STDERR"
+fi
+
+exit 0

@@ -1,0 +1,67 @@
+<div class="grid">
+  <div class="card stat" id="wan1-card">
+    <div class="l">WAN1 <span class="wan-dot" id="wan1-dot"></span></div>
+    <div class="v" id="wan1-status" style="color:var(--accent-gray)">--</div>
+  </div>
+  <div class="card stat" id="wan2-card">
+    <div class="l">WAN2 <span class="wan-dot" id="wan2-dot"></span></div>
+    <div class="v" id="wan2-status" style="color:var(--accent-gray)">--</div>
+  </div>
+  <div class="card stat">
+    <div class="l">Online PPP</div>
+    <div class="v" id="ppp-online-count" style="color:var(--accent-purple)">--</div>
+  </div>
+  <div class="card stat">
+    <div class="l">Online Hotspot</div>
+    <div class="v" id="hotspot-online-count" style="color:var(--accent-amber)">--</div>
+  </div>
+</div>
+
+<style>
+.wan-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:6px}
+.wan-dot.up{background:var(--accent-green);box-shadow:0 0 6px var(--accent-green)}
+.wan-dot.down{background:#ef4444;box-shadow:0 0 6px #ef4444}
+.card.stat .s{font-size:0.85rem;color:var(--clr-text-muted);margin-top:4px}
+</style>
+
+<script>
+function cargarDashboard(){
+  // MWAN: estado UP/DOWN por WAN
+  fetch('/api/mwan/status')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var w1 = d.wan1, w2 = d.wan2;
+      if(w1){
+        var up1 = w1.status === 'up';
+        document.getElementById('wan1-status').textContent = up1 ? 'UP' : 'DOWN';
+        document.getElementById('wan1-status').style.color = up1 ? 'var(--accent-green)' : '#ef4444';
+        document.getElementById('wan1-dot').className = 'wan-dot ' + (up1 ? 'up' : 'down');
+      }
+      if(w2){
+        var up2 = w2.status === 'up';
+        document.getElementById('wan2-status').textContent = up2 ? 'UP' : 'DOWN';
+        document.getElementById('wan2-status').style.color = up2 ? 'var(--accent-green)' : '#ef4444';
+        document.getElementById('wan2-dot').className = 'wan-dot ' + (up2 ? 'up' : 'down');
+      }
+    })
+    .catch(function(){ document.getElementById('wan1-status').textContent = 'ERR'; });
+
+  // PPP + Hotspot: apiFetch con cache 10s (compartido con simulateLiveData)
+  apiFetch('/api/ppp/active', null, 10000)
+    .then(function(d){
+      var items = Array.isArray(d) ? d : (d.active || []);
+      document.getElementById('ppp-online-count').textContent = items.length;
+    }).catch(function(){});
+  apiFetch('/api/hotspot/active', null, 10000)
+    .then(function(d){
+      var items = Array.isArray(d) ? d : (d.active || []);
+      document.getElementById('hotspot-online-count').textContent = items.length;
+    }).catch(function(){});
+}
+
+cargarDashboard();
+// Auto-refresh 10s — lp() limpia intervals al navegar
+setInterval(function(){
+  if(typeof cargarDashboard === 'function') cargarDashboard();
+}, 10000);
+</script>

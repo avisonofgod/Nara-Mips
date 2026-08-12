@@ -1,0 +1,68 @@
+<div class="page-header">
+  <h3 class="page-title">⚙️ General</h3>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:1.5rem">
+  <div class="card stat" style="padding:1rem">
+    <div class="l">Hostname</div>
+    <div class="v" style="font-family:monospace;font-size:1.1rem;color:var(--accent-blue)" id="identity-name">--</div>
+  </div>
+  <div class="card stat" style="padding:1rem">
+    <div class="l">Version</div>
+    <div class="v" style="font-family:monospace;font-size:1rem;color:var(--accent-green)" id="identity-version">--</div>
+  </div>
+  <div class="card stat" style="padding:1rem">
+    <div class="l">Uptime</div>
+    <div class="v" style="font-family:monospace;font-size:1rem;color:var(--accent-purple)" id="identity-uptime">--</div>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Key</th><th>Value</th>
+  </tr>
+  <tbody id="identity-tbody"><tr><td colspan="2" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+function identityRow(x){
+  return '<tr>'+
+    '<td style="font-weight:500;color:var(--clr-text);font-family:monospace">'+escHtml(x.key)+'</td>'+
+    '<td style="font-family:monospace;color:var(--accent-blue);font-weight:500">'+escHtml(x.value)+'</td>'+
+  '</tr>';
+}
+window.renderIdentity = function(entries){ zTable.render('identity-tbody', entries, identityRow); };
+
+function cargarSystem(){
+  fetch('/api/system')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      document.getElementById('identity-name').textContent = d.hostname || '--';
+      document.getElementById('identity-version').textContent = d.version || '--';
+      document.getElementById('identity-uptime').textContent = d.uptime || '--';
+      window.renderIdentity([
+        {key:'kernel',      value:d.kernel || '--'},
+        {key:'architecture',value:d.arch || '--'},
+        {key:'cpu',         value:d.cpu_model || '--'},
+        {key:'cpu-cores',   value:d.cpu_cores || '--'},
+        {key:'CPU Load (5m)',value:d.load5 || '--'},
+        {key:'Total Memory', value:(d.mem_total_mb||'--')+' MB'},
+        {key:'Used Memory',  value:(d.mem_used_mb||'--')+' MB'},
+        {key:'Free Memory',  value:(d.mem_free_mb||'--')+' MB'},
+        {key:'Total Disk /', value:d.disk_total_bytes?formatBytes(d.disk_total_bytes):'--'},
+        {key:'Used Disk /',  value:d.disk_used_bytes?formatBytes(d.disk_used_bytes):'--'},
+        {key:'Free Disk /',  value:d.disk_free_bytes?formatBytes(d.disk_free_bytes):'--'},
+        {key:'time',        value:d.time || '--'},
+        {key:'timezone',    value:d.timezone || '--'}
+      ]);
+    })
+    .catch(function(e){
+      var t = document.getElementById('identity-tbody');
+      if(t) t.innerHTML = '<tr><td colspan="2" class="page-empty">Error: '+e.message+'</td></tr>';
+    });
+}
+window.cargarSystem = cargarSystem;
+cargarSystem();
+</script>

@@ -1,0 +1,40 @@
+<div class="page-header">
+  <h3 class="page-title">📋 ARP Table</h3>
+</div>
+<div class="table-responsive">
+<table>
+  <thead>
+    <tr>
+      <th>IP</th>
+      <th>MAC</th>
+      <th>INTERFACE</th>
+      <th>STATE</th>
+    </tr>
+  </thead>
+  <tbody id="arp-tbody"></tbody>
+</table>
+</div>
+<script>
+function loadARP(){
+  fetch('/api/arp').then(function(r){ return r.json() }).then(function(raw){
+    var data = Array.isArray(raw) && Array.isArray(raw[0]) ? raw[0] : (Array.isArray(raw) ? raw : []);
+    var tbody = document.getElementById('arp-tbody');
+    if(!data || data.length===0){ tbody.innerHTML = '<tr><td colspan="4" class="empty">Sin entradas ARP</td></tr>'; return; }
+    tbody.innerHTML = data.map(function(a){
+      return '<tr>' +
+        '<td>'+escHtml(a.address||'')+'</td>' +
+        '<td style="font-family:monospace">'+escHtml(a.lladdr||'')+'</td>' +
+        '<td>'+escHtml(a.ifname||'')+'</td>' +
+        '<td>'+getStateBadge(a.state)+'</td>' +
+        '</tr>';
+    }).join('');
+  })['catch'](function(e){ console.error("arp err",e); });
+}
+function getStateBadge(s){
+  if(!s) return '<span style="color:#94a3b8">unknown</span>';
+  s = s.toUpperCase();
+  var c = (s==='REACHABLE'||s==='PERMANENT')?'#22c55e':(s==='STALE'||s==='DELAY')?'#f59e0b':(s==='FAILED'||s==='INCOMPLETE')?'#ef4444':'#60a5fa';
+  return '<span style="color:'+c+';font-weight:600">'+escHtml(s)+'</span>';
+}
+loadARP();
+</script>

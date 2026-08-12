@@ -1,0 +1,107 @@
+<div class="page-header">
+  <h3 class="page-title">🏠 IP Addresses</h3>
+  <button class="btn-primary" onclick="cargarInterfacesFormIP();zModal.show('add-ip-modal','&#x2795; Add IP',addIPForm(),'Agregar',addIP,{size:'lg', cols:2})">+ Add IP</button>
+</div>
+
+<div id="ip-addresses-content">
+  <div class="loading">Cargando direcciones IP...</div>
+</div>
+
+<script>
+const IP_API = '/api/ip-addresses';
+const IP_ADD_API = '/api/ip-addresses';
+
+function addIPForm(){
+  return '<div class="form-group">'+
+    '<label class="form-label">Interface <span class="text-danger">*</span></label>'+
+    '<select id="addip-interface" class="form-input" required>'+
+      '<option value="">Select interface...</option>'+
+    '</select>'+
+    '</div>'+
+    '<div class="form-group">'+
+      '<label class="form-label">IP Address (CIDR) <span class="text-danger">*</span></label>'+
+      '<input type="text" id="addip-address" class="form-input" placeholder="e.g. 192.168.30.1/24" required>'+
+    '</div>';
+}
+
+function cargarInterfacesFormIP(){
+  fetch('/api/interfaces')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var sel = document.getElementById('addip-interface');
+      if(!sel) return;
+      var opts = '<option value="">Select interface...</option>';
+      for(var i=0;i<data.length;i++){
+        var d = data[i];
+        if(d.type === 'loopback' || d.type === 'wireguard' || d.type === 'bridge' || d.type === 'other' || d.type === 'ppp') continue;
+        opts += '<option value="'+d.name+'">'+d.name+' ('+d.type+')</option>';
+      }
+      sel.innerHTML = opts;
+    })
+    .catch(function(){});
+}
+
+function addIP(){
+  var rawIface = document.getElementById('addip-interface').value;
+  var iface = rawIface.split('@')[0]; // limpiar @parent para VLANs
+  var addr = document.getElementById('addip-address').value;
+  if(!rawIface || !addr){ alert('Interface and IP Address are required'); return; }
+  fetch('/api/ip-addresses', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({interface: iface, address: addr})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.error){ alert('Error: '+d.error); return; }
+    zModal.close('add-ip-modal');
+    cargarIPs();
+  }).catch(function(e){ alert('Error: '+e.message); });
+}
+
+function eliminarIP(iface, address){
+  if(!confirm('Delete IP '+address+' from '+iface+'?')) return;
+  var encAddr = encodeURIComponent(address);
+  fetch('/api/ip-addresses/'+encodeURIComponent(iface)+'/'+encAddr, {
+    method: 'DELETE'
+  }).then(function(r){ return r.json(); }).then(function(d){
+    cargarIPs();
+  }).catch(function(e){ alert('Error: '+e.message); });
+}
+
+function cargarIPs(){
+  var container = document.getElementById('ip-addresses-content');
+  container.innerHTML = '<div class="loading">Cargando direcciones IP...</div>';
+
+  fetch(IP_API)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data || data.length===0){
+        container.innerHTML = '<div class="empty-state">'+
+          '<div class="empty-icon">&#x1f3e0;</div>'+
+          '<div class="empty-title">No IP addresses found</div>'+
+        '</div>';
+        return;
+      }
+      var rows = '';
+      for(var i=0;i<data.length;i++){
+        var ip = data[i];
+        var badgeClass = 'badge-success';
+        var badgeText = '<span class="badge '+badgeClass+'">&#x1f7e2; Active</span>';
+        rows += '<tr>'+
+          '<td><span class="tx-mono tx-weight-600">'+escHtml(ip.address)+'</span></td>'+
+          '<td><span class="tx-code">'+escHtml(ip.interface)+'</span></td>'+
+          '<td>'+badgeText+'</td>'+
+          '<td><button class="btn-icon-danger" onclick="eliminarIP(\''+escHtml(ip.interface)+'\',\''+escHtml(ip.address)+'\')" title="Delete IP">&#x1f5d1;</button></td>'+
+        '</tr>';
+      }
+      container.innerHTML = '<div class="table-wrap"><table><thead><tr>'+
+        '<th>Address</th><th>Interface</th><th>Status</th><th></th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+    })
+    .catch(function(e){
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x26a0;&#xfe0f;</div><div class="empty-title">Connection error</div><div class="empty-desc">'+e.message+'</div></div>';
+    });
+}
+
+window._initIPAddrs = cargarIPs;
+cargarIPs();
+</script>

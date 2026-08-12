@@ -1,0 +1,25 @@
+<div class="fw-page">
+  <h3>⏱️ Límites / Log</h3>
+  <p class="fw-subtitle">Reglas nftables con limit o log</p>
+  <div class="fw-actions">
+    <button class="btn btn-refresh" onclick="cargarLimit()">⟳ Refrescar</button>
+  </div>
+  <table class="fw-table" id="limitTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>TABLA</th>
+        <th>CHAIN</th>
+        <th>HANDLE</th>
+        <th>REGLA</th>
+      </tr>
+    </thead>
+    <tbody id="limitBody">
+      <tr><td colspan="5" class="loading">Cargando...</td></tr>
+    </tbody>
+  </table>
+</div>
+<script>
+function cargarLimit(){var p=[fetch('/api/firewall/filter'),fetch('/api/firewall/nat'),fetch('/api/firewall/mangle')];Promise.all(p).then(function(rs){return Promise.all(rs.map(function(r){return r.json()}))}).then(function(ds){var all=[];['filter','nat','mangle'].forEach(function(n,i){var r=ds[i].rules||[];r.forEach(function(v){if(v.expr_text.indexOf('limit')>=0||v.expr_text.indexOf('log')>=0){v._table=n;all.push(v)}})});var t=document.getElementById('limitBody');t.innerHTML='';if(!all.length){t.innerHTML='<tr><td colspan="5" class="empty">Sin reglas limit/log</td></tr>';return}all.forEach(function(v,i){t.innerHTML+='<tr><td>'+(i+1)+'</td><td>'+v._table+'</td><td>'+v.chain+'</td><td>'+v.handle+'</td><td>'+v.expr_text+'</td></tr>'})}).catch(function(){document.getElementById('limitBody').innerHTML='<tr><td colspan="5" class="error">Error al cargar</td></tr>'})}
+</script>
+</div>

@@ -1,0 +1,95 @@
+<div class="page-header">
+  <h2>📡 Servidor PPPoE</h2>
+  <p>Control del <strong>pppoe-server</strong> en eth3.881 (VLAN 881, pool
+     192.168.20.100+). Solo el servicio: no crea VLANs ni IPs. El arranque
+     al boot va junto con Zpot en <code>/etc/local.d/zpot-red.start</code>.</p>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:24px">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="font-size:1.1rem">Estado:</div>
+      <span id="pppoeStateBadge" style="padding:8px 18px;border-radius:20px;font-weight:700;font-size:1.05rem">
+        Cargando...
+      </span>
+      <span id="pppoePids" style="font-family:monospace;font-size:0.85rem;color:#888"></span>
+      <div style="margin-left:auto">
+        <button id="pppoeToggleBtn" class="btn" onclick="togglePppoeServer()"
+                style="padding:10px 26px;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600">
+          ...
+        </button>
+      </div>
+    </div>
+    <div id="pppoeMsg" style="margin-top:14px;font-size:0.9rem;min-height:1.2em"></div>
+    <div style="margin-top:14px;font-size:0.8rem;color:#777;line-height:1.6">
+      Comando: <code>/usr/sbin/pppoe-server -I eth3.881 -N 100 -m 1412 -q /usr/sbin/pppd
+      -L 192.168.20.1 -R 192.168.20.100</code><br>
+      ⚠️ <b>Stop</b> impide nuevas conexiones; las sesiones activas quedan
+      hasta que el CPE reconecte.
+    </div>
+  </div>
+</div>
+
+<script>
+var pppoePoll = null;
+
+function pppoeStatus(){
+  return fetch('/api/ppp/server/status').then(function(r){ return r.json(); });
+}
+
+function renderPppoe(d){
+  var badge = document.getElementById('pppoeStateBadge');
+  var btn = document.getElementById('pppoeToggleBtn');
+  var pids = document.getElementById('pppoePids');
+  if(d.running){
+    badge.textContent = '🟢 ON';
+    badge.style.background = '#14532d';
+    badge.style.color = '#4ade80';
+    btn.textContent = '⏹ Stop';
+    btn.style.background = '#dc2626';
+    btn.style.color = '#fff';
+    pids.textContent = 'PID: ' + (d.pids || []).join(', ');
+  } else {
+    badge.textContent = '🔴 OFF';
+    badge.style.background = '#450a0a';
+    badge.style.color = '#f87171';
+    btn.textContent = '▶ Start';
+    btn.style.background = '#16a34a';
+    btn.style.color = '#fff';
+    pids.textContent = '';
+  }
+}
+
+function cargarPppServer(){
+  pppoeStatus().then(renderPppoe).catch(function(e){
+    document.getElementById('pppoeStateBadge').textContent = '⚠ Error';
+    document.getElementById('pppoeMsg').textContent = 'Error: ' + e.message;
+  });
+}
+
+function togglePppoeServer(){
+  var msg = document.getElementById('pppoeMsg');
+  pppoeStatus().then(function(d){
+    if(d.running){
+      if(!confirm('¿Detener el servidor PPPoE? Se impiden nuevas conexiones.')) return;
+      return fetch('/api/ppp/server/stop', {method:'POST'}).then(function(r){ return r.json(); });
+    } else {
+      return fetch('/api/ppp/server/start', {method:'POST'}).then(function(r){ return r.json(); });
+    }
+  }).then(function(res){
+    if(res){
+      renderPppoe(res);
+      msg.innerHTML = res.running
+        ? '<span style="color:#4ade80">✅ Servidor activo</span>'
+        : '<span style="color:#f87171">Servidor detenido</span>';
+    }
+  }).catch(function(e){
+    msg.innerHTML = '<span style="color:#f87171">Error: ' + e.message + '</span>';
+  });
+}
+
+window._initPppServer = cargarPppServer;
+cargarPppServer();
+if(pppoePoll) clearInterval(pppoePoll);
+pppoePoll = setInterval(cargarPppServer, 5000);
+</script>

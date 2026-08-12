@@ -1,0 +1,185 @@
+<div class="page-header">
+  <h3>🏷 VLANs</h3>
+  <button class="btn btn-primary" onclick="vlanAdd()">+ Nueva VLAN</button>
+</div>
+
+<table class="data-table" id="vlanTable">
+  <thead><tr>
+    <th>INTERFAZ</th><th>VLAN ID</th><th>PARENT</th>
+    <th>NATIVA</th><th>ESTADO</th><th>ACCION</th>
+  </tr></thead>
+  <tbody id="vlanBody"></tbody>
+</table>
+
+<script>
+window.API_BASE = window.location.origin;
+
+window.cargarVlans = function(retries) {
+  retries = retries || 0;
+  var tbody = document.getElementById('vlanBody');
+  tbody.innerHTML = '<tr><td colspan="6" class="page-empty">Cargando...</td></tr>';
+  fetch(API_BASE + '/api/vlans', {cache: 'no-store'}).then(function(r){
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(data){
+    if (!data || !data.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="page-empty">Sin VLANs configuradas</td></tr>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < data.length; i++) {
+      var v = data[i];
+      var vid = v.vlan_id || v.id || '';
+      var nativeVal = v.native;
+      var isNativeBool = nativeVal === true || nativeVal === 'true' || nativeVal === 'nativa';
+      var nativeBadge = isNativeBool ? '<span class="badge badge-success">nativa</span>' : '<span class="badge badge-secondary">' + escHtml(''+nativeVal) + '</span>';
+      var vlanIdDisplay = isNativeBool ? '-' : ('' + vid);
+      var statusColor = v.status === 'up' ? '🟢' : (v.status === 'down' ? '🔴' : '🟡');
+      html += '<tr>' +
+        '<td><strong>' + escHtml(v.name) + '</strong></td>' +
+        '<td>' + vlanIdDisplay + '</td>' +
+        '<td>' + escHtml(v.parent || '-') + '</td>' +
+        '<td>' + nativeBadge + '</td>' +
+        '<td>' + statusColor + ' ' + escHtml(v.status || 'unknown') + '</td>' +
+        '<td>' +
+        '<button class="btn btn-sm btn-secondary" onclick="vlanEdit(\'' + escHtml(v.name).replace(/'/g,"\\'") + '\',\'' + escHtml(v.parent || "").replace(/'/g,"\\'") + '\',\'' + vlanIdDisplay + '\')" title="Configurar">✏️</button> ' +
+        '<button class="btn btn-sm btn-danger" onclick="vlanDelete(\'' + escHtml(v.name).replace(/'/g,"\\'") + '\')" title="Eliminar">🗑</button>' +
+        '</td></tr>';
+    }
+    tbody.innerHTML = html;
+  }).catch(function(err){
+    if (retries < 3) {
+      setTimeout(function(){ cargarVlans(retries + 1); }, 1000);
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" class="page-empty">Error al cargar VLANs: ' + err.message + '</td></tr>';
+    }
+  });
+};
+
+window.vlanAdd = function() {
+  var formHtml =
+    '<div class="form-group span-2">'+
+      '<label class="form-label">Interfaz padre</label>'+
+      '<select id="vlanParent" class="form-input"><option value="">Cargando...</option></select>'+
+    '</div>'+
+    '<div class="form-group">'+
+      '<label class="form-label">VLAN ID</label>'+
+      '<input id="vlanId" class="form-input" type="number" min="1" max="4094" placeholder="ej: 20">'+
+    '</div>'+
+    '<div class="form-group">'+
+      '<label class="form-label">Nombre (opcional)</label>'+
+      '<input id="vlanTitle" class="form-input" placeholder="ej: CLIENTES">'+
+    '</div>'+
+    '<div class="form-group">'+
+      '<label class="form-label"><input id="vlanNative" type="checkbox"> VLAN nativa (sin tag)</label>'+
+    '</div>';
+  zModal.show('vlanModal','🏷 Nueva VLAN',formHtml,'Crear',vlanSave,{size:'lg',cols:2});
+  // Cargar interfaces
+  var sel = document.getElementById('vlanParent');
+  fetch(API_BASE + '/api/interfaces').then(function(r){ return r.json(); }).then(function(data){
+    sel.innerHTML = '';
+    for (var i = 0; i < data.length; i++) {
+      var iface = data[i].name || data[i];
+      if (iface === 'lo' || iface.indexOf('.') > 0) continue;
+      sel.innerHTML += '<option value="' + escHtml(iface) + '">' + escHtml(iface) + '</option>';
+    }
+  }).catch(function(){
+    sel.innerHTML = '<option value="">Sin interfaces</option>';
+  });
+  document.getElementById('vlanId').value = '';
+  document.getElementById('vlanTitle').value = '';
+  document.getElementById('vlanNative').checked = false;
+  document.getElementById('vlanModalTitle').textContent = 'Nueva VLAN';
+  zModal.show('vlanModal');
+};
+
+window.vlanSave = function() {
+  var parent = document.getElementById('vlanParent').value;
+  var vlanId = document.getElementById('vlanId').value;
+  var title = document.getElementById('vlanTitle').value || '';
+  var isNative = document.getElementById('vlanNative').checked;
+
+  if (!parent || !vlanId) { alert('Debe seleccionar interfaz y VLAN ID'); return; }
+
+  var name = parent + '.' + vlanId;
+  if (isNative) name = parent;
+
+  var body = JSON.stringify({
+    name: name,
+    vlan_id: parseInt(vlanId),
+    parent: parent,
+    title: title,
+    native: isNative
+  });
+
+  fetch(API_BASE + '/api/vlans', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: body
+  }).then(function(r){ return r.json(); }).then(function(resp){
+    if (resp.ok || resp.success) {
+      zModal.close('vlanModal');
+      cargarVlans();
+    } else {
+      alert(resp.error || 'Error al crear VLAN');
+    }
+  }).catch(function(){
+    alert('Error de conexion');
+  });
+};
+
+window.vlanDelete = function(name) {
+  if (!confirm('Eliminar VLAN ' + name + '?')) return;
+  fetch(API_BASE + '/api/vlans/delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name})
+  }).then(function(r){
+    return r.json();
+  }).then(function(resp){
+    if (resp.success) cargarVlans();
+  }).catch(function(){});
+};
+
+window.vlanEdit = function(name, parent, vid) {
+  var currentTitle = '';
+  // Intentar obtener el título actual del API
+  var allRows = document.querySelectorAll('#vlanBody tr');
+  var formHtml =
+    '<div class="form-group span-2">'+
+      '<label class="form-label">VLAN</label>'+
+      '<input class="form-input" value="' + escHtml(name) + '" readonly style="background:#1a2332;color:#ccc">'+
+    '</div>'+
+    '<div class="form-group span-2">'+
+      '<label class="form-label">Descripción / Título</label>'+
+      '<input id="vlanEditTitle" class="form-input" placeholder="ej: CLIENTES" value="">'+
+    '</div>';
+  
+  zModal.show('vlanEditModal', '✏️ Editar VLAN: ' + escHtml(name), formHtml, 'Guardar', vlanEditSave, {size:'sm', cols:2});
+  zModal.show('vlanEditModal');
+};
+
+window.vlanEditSave = function() {
+  var nameInput = document.querySelector('#vlanEditModal input.form-input[readonly]');
+  if (!nameInput) { zModal.close('vlanEditModal'); return; }
+  var name = nameInput.value;
+  var title = document.getElementById('vlanEditTitle').value || '';
+  
+  fetch(API_BASE + '/api/vlans/title', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name, title: title})
+  }).then(function(r){ return r.json(); }).then(function(resp){
+    if (resp.success) {
+      zModal.close('vlanEditModal');
+      cargarVlans();
+    } else {
+      alert(resp.error || 'Error al actualizar');
+    }
+  }).catch(function(){
+    alert('Error de conexion');
+  });
+};
+
+cargarVlans();
+</script>

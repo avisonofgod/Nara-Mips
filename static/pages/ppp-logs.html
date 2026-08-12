@@ -1,0 +1,52 @@
+<div class="page-header">
+  <h3 class="page-title"> Logs PPP</h3>
+  <button class="btn-ghost" onclick="loadPppLogs()">🔄 Refresh</button>
+  <button class="btn-secondary" onclick="loadPppAuthLogs()">🔐 Auth RADIUS</button>
+</div>
+<div class="table-wrap"><table>
+  <tr>
+    <th style="width:120px">Time</th>
+    <th>Log</th>
+  </tr>
+  <tbody id="ppp-logs-tbody"><tr><td colspan="2" class="page-empty">Cargando...</td></tr></tbody>
+</table></div>
+
+<script>
+// P2 (revisa.md #9): pestaña de AUTENTICACIÓN RADIUS — accept/reject,
+// errores, timeout, asignación de IP (lee /var/log/messages filtrado)
+var _pppAuthMode = false;
+function loadPppLogs(){
+  _pppAuthMode = false;
+  render('/api/ppp/logs');
+}
+function loadPppAuthLogs(){
+  _pppAuthMode = true;
+  render('/api/ppp/logs/auth');
+}
+function render(url){
+  var tbody = document.getElementById('ppp-logs-tbody');
+  tbody.innerHTML = '<tr><td colspan="2" class="page-empty">Cargando...</td></tr>';
+  fetch(url).then(function(r){return r.json();}).then(function(list){
+    if(!list||!list.length){
+      tbody.innerHTML = '<tr><td colspan="2" class="page-empty">Sin logs</td></tr>';
+      return;
+    }
+    var h = '';
+    for(var i=0;i<list.length;i++){
+      var line = escHtml(list[i].line);
+      var isErr = /reject|failed|timeout|error/i.test(list[i].line||'');
+      h += '<tr>'+
+        '<td class="mono muted small" style="white-space:nowrap">—</td>'+
+        '<td class="mono small" style="max-width:1px;word-break:break-all'+(isErr?';color:var(--danger,#e74c3c)':'')+'">'+line+'</td>'+
+      '</tr>';
+    }
+    tbody.innerHTML = h;
+  }).catch(function(e){
+    tbody.innerHTML = '<tr><td colspan="2" class="page-empty" style="color:red">Error: '+escHtml(e.message)+'</td></tr>';
+  });
+}
+
+window.loadPppLogs = loadPppLogs;
+window.loadPppAuthLogs = loadPppAuthLogs;
+loadPppLogs();
+</script>

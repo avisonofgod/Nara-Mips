@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "server_name": "radius-main",
+  "nas_identifier": "zpot-nas",
+  "nas_ip": "192.168.20.1",
+  "fallback_local": false,
+  "accounting": false,
+  "pool_start": "192.168.20.100",
+  "pool_end": "192.168.20.200",
+  "dns1": "192.168.20.1",
+  "dns2": "8.8.8.8"
+}

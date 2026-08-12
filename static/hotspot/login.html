@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="pragma" content="no-cache" />
+	<meta http-equiv="expires" content="-1" />	
+	<meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=1.0; user-scalable=0" />
+  <title>Hotspot Login</title>
+  <link rel="stylesheet" href="/hotspot/portal/static/css/style.css" media="screen">
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <!-- Versículo dinámico -->
+      <div id="verseBox" class="verse-box">Cargando versículo...</div>
+
+      <!-- Mensaje de error o bienvenida -->
+      <p id="errorMessage" class="info $(if error)alert$(endif)">
+        $(if error == "")🛜 Inicia sesión$(endif)
+        $(if error)⚠️ $(error)$(endif)
+      </p>
+
+      <!-- Formulario -->
+      <form id="loginForm" action="$(link-login-only)" method="post">
+        <input type="hidden" name="dst" value="$(link-orig)" />
+        <input type="hidden" name="popup" value="true" />
+        <div class="field-group">
+          <input type="text" id="username" name="username" placeholder="USUARIO" required />
+        </div>
+        <div class="field-group">
+          <input type="password" id="password" name="password" placeholder="CLAVE" required />
+        </div>
+        <button type="submit">Conectar</button>
+      </form>
+
+      <!-- Precios en tabla 2 columnas: nombre | costo -->
+      <div class="footer-table">
+        <div class="footer-row header-row">
+          <div class="footer-cell header-cell">Ticket</div>
+          <div class="footer-cell header-cell">Costo</div>
+        </div>
+        <div class="footer-row">
+          <div class="footer-cell">🕑 2hr Pausada</div>
+          <div class="footer-cell">$10 MXN</div>
+        </div>
+        <div class="footer-row">
+          <div class="footer-cell">⏰ 12hr Pausada</div>
+          <div class="footer-cell">$30 MXN</div>
+        </div>
+        <div class="footer-row">
+          <div class="footer-cell">📅 7 días Corrido</div>
+          <div class="footer-cell">$50 MXN</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Versículo aleatorio -->
+  <script src="/hotspot/portal/static/js/main.js"></script>
+  <script src="/hotspot/portal/static/js/versiculo-texto.js"></script>
+
+  <!-- Traducción de errores -->
+  <script>
+    const traducciones = {
+      "Your maximum never usage time has been reached": "⏳ Has alcanzado el tiempo máximo de uso permitido.",
+      "Invalid username or password": "❌ Usuario o contraseña incorrectos.",
+      "No valid profile found": "⚠️ No se encontró un perfil válido.",
+      "You are not allowed to log in at this time": "⏰ No tienes permiso para iniciar sesión en este horario."
+    };
+
+    const errorElement = document.getElementById("errorMessage");
+    if (errorElement && errorElement.textContent.trim()) {
+      const original = errorElement.textContent.trim().replace(/^⚠️\s*/, "");
+      const traducido = traducciones[original];
+      if (traducido) {
+        errorElement.innerHTML = traducido;
+      }
+    }
+  </script>
+</body>
+</html>

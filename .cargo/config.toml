@@ -1,0 +1,4 @@
+# Build config NARA para cross-compile mipsel (NO modifica codigo fuente)
+[target.mipsel-unknown-linux-musl]
+linker = "/root/naram/zig-mipsel-linker.sh"
+rustflags = ["-C", "relocation-model=static", "-C", "target-cpu=1004kc", "-C", "link-arg=-static"]

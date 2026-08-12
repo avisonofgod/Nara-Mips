@@ -1,0 +1,99 @@
+<div class="page-header">
+  <h3>🌐 Walled Garden</h3>
+  <button class="btn-primary" onclick="mostrarAddWg()">+ Add URL</button>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Domain</th>
+    <th>IP</th>
+    <th>Port</th>
+    <th>Protocol</th>
+    <th>Comment</th>
+    <th></th>
+  </tr>
+  <tbody id="wg-tbody"><tr><td colspan="6" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+function mostrarAddWg(){
+  var html =
+    '<div class="grid-2">' +
+      zUI.input('wg-domain', 'Domain', 'wikipedia.org', {mono:true}) +
+      zUI.input('wg-ip', 'IP', '208.80.154.224', {mono:true}) +
+    '</div>' +
+    '<div class="grid-2">' +
+      zUI.input('wg-port', 'Port', '80, 443', {mono:true}) +
+      zUI.select('wg-protocol', 'Protocol', [
+        {value:'*', text:'* (any)'},
+        {value:'tcp', text:'tcp'},
+        {value:'udp', text:'udp'}
+      ]) +
+    '</div>' +
+    zUI.input('wg-comment', 'Comment', 'ej: Wikipedia bypass');
+  zModal.show('add-wg-modal', '➕ Add Walled Garden', html, 'Añadir', function(){
+    var ip = document.getElementById('wg-ip').value.trim();
+    var domain = document.getElementById('wg-domain').value.trim();
+    if(!ip && !domain){ alert('Domain o IP requeridos'); return; }
+    var body = {
+      domain: domain || '—',
+      ip: ip || '—',
+      port: document.getElementById('wg-port').value.trim() || '*',
+      protocol: document.getElementById('wg-protocol').value,
+      comment: document.getElementById('wg-comment').value.trim() || ''
+    };
+    fetch('/api/hotspot/walled-garden', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if(d.status === 'ok'){ zModal.close('add-wg-modal'); cargarWg(); }
+      else alert('Error: '+(d.error||'desconocido'));
+    }).catch(function(e){ alert('Error: '+e.message); });
+  }, {size:'lg', cols:2});
+}
+
+function cargarWg(){
+  var tbody = document.getElementById('wg-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="page-empty">Cargando...</td></tr>';
+  fetch('/api/hotspot/walled-garden')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data || data.length===0){
+        tbody.innerHTML = '<tr><td colspan="6" class="page-empty">Sin entradas</td></tr>';
+        return;
+      }
+      var h = '';
+      for(var i=0;i<data.length;i++){
+        var e = data[i];
+        h += '<tr>'+
+          '<td style="font-weight:600">'+escHtml(e.domain||'—')+'</td>'+
+          '<td style="font-family:monospace;color:var(--accent-blue)">'+escHtml(e.ip||'—')+'</td>'+
+          '<td>'+escHtml(e.port||'*')+'</td>'+
+          '<td>'+escHtml(e.protocol||'*')+'</td>'+
+          '<td style="color:var(--clr-text-muted)">'+escHtml(e.comment||'')+'</td>'+
+          '<td><button class="btn-danger btn-sm" onclick="eliminarWg(\''+escHtml(e.ip)+'\')">✕</button></td>'+
+        '</tr>';
+      }
+      tbody.innerHTML = h;
+    })
+    .catch(function(e){
+      tbody.innerHTML = '<tr><td colspan="6" class="page-empty" style="color:var(--accent-red)">Error: '+e.message+'</td></tr>';
+    });
+}
+
+function eliminarWg(ip){
+  if(!confirm('Eliminar entrada IP '+ip+'?')) return;
+  fetch('/api/hotspot/walled-garden/delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ip: ip})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.status === 'ok') cargarWg();
+    else alert('Error: '+(d.error||'desconocido'));
+  }).catch(function(e){ alert('Error: '+e.message); });
+}
+
+cargarWg();
+</script>

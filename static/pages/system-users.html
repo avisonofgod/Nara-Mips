@@ -1,0 +1,40 @@
+<div class="page-header">
+  <h3 class="page-title">👤 Users (sistema)</h3>
+  <span class="text-muted">Cuentas reales de /etc/passwd</span>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Username</th><th>UID</th><th>Home</th><th>Shell</th>
+  </tr>
+  <tbody id="users-tbody"><tr><td colspan="4" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+function userRow(x){
+  return '<tr>'+
+    '<td style="font-weight:600;font-family:var(--font-mono);color:var(--accent-blue)">'+escHtml(x.name)+'</td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted)">'+escHtml(x.uid)+'</td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:0.8rem">'+escHtml(x.home)+'</td>'+
+    '<td style="font-family:monospace;color:var(--clr-text-muted);font-size:0.8rem">'+escHtml(x.shell)+'</td>'+
+  '</tr>';
+}
+window.renderUsers = function(entries){ zTable.render('users-tbody', entries, userRow); };
+
+function cargarUsers(){
+  fetch('/api/system')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var users = d.users || [];
+      if(users.length) window.renderUsers(users);
+      else { var t = document.getElementById('users-tbody'); if(t) t.innerHTML = '<tr><td colspan="4" class="page-empty">Sin datos</td></tr>'; }
+    })
+    .catch(function(e){
+      var t = document.getElementById('users-tbody');
+      if(t) t.innerHTML = '<tr><td colspan="4" class="page-empty">Error: '+e.message+'</td></tr>';
+    });
+}
+window.cargarUsers = cargarUsers;
+cargarUsers();
+</script>

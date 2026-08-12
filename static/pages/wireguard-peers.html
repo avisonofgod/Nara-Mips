@@ -1,0 +1,106 @@
+<div class="page-header">
+  <h3 class="page-title">🔑 WireGuard Peers</h3>
+  <div style="display:flex;gap:8px;align-items:center">
+    <label class="form-label" style="margin:0">Interfaz:</label>
+    <select id="peer-iface" class="form-input" style="width:140px;font-family:monospace" onchange="ifaceChanged()"></select>
+    <button class="btn btn-primary" onclick="mostrarAddPeer()">+ Add Peer</button>
+  </div>
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Public Key</th><th>Endpoint</th><th>Allowed IPs</th><th>Handshake</th><th>RX</th><th>TX</th><th></th>
+  </tr>
+  <tbody id="wg-peers-tbody"><tr><td colspan="7" class="page-empty">Cargando...</td></tr></tbody>
+</table>
+</div>
+
+<script>
+(function(){
+var IFACE = 'wg0';
+
+function cargarIfaces(){
+  fetch('/api/wireguard/interfaces').then(function(r){ return r.json(); }).then(function(d){
+    var sel = document.getElementById('peer-iface');
+    var h = '';
+    for(var i=0;i<d.length;i++){
+      h += '<option value="'+esc(d[i].name)+'"'+(d[i].name===IFACE?' selected':'')+'>'+esc(d[i].name)+'</option>';
+    }
+    sel.innerHTML = h || '<option value="wg0">wg0</option>';
+  }).catch(function(){});
+}
+window.ifaceChanged = function(){
+  IFACE = document.getElementById('peer-iface').value || 'wg0';
+  cargar();
+};
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function tiempoDesde(ts){
+  var now = Math.floor(Date.now() / 1000);
+  var secs = now - parseInt(ts);
+  if(!ts || ts === '0') return '&mdash;';
+  if(secs < 0) return '0s';
+  if(secs < 60) return secs + 's';
+  if(secs < 3600) return Math.floor(secs/60) + 'm ' + (secs%60) + 's';
+  if(secs < 86400) return Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
+  return Math.floor(secs/86400) + 'd ' + Math.floor((secs%86400)/3600) + 'h';
+}
+
+function peerRow(p){
+  var hs = tiempoDesde(p.handshake);
+  var hsClass = (hs.indexOf('m')>=0||hs.indexOf('h')>=0||hs.indexOf('d')>=0) ? 'badge badge-up' : 'badge badge-down';
+  return '<tr>'+
+    '<td style="font-family:monospace;font-size:12px;color:#60a5fa"><span title="'+esc(p.public_key)+'">'+esc(p.public_key.substring(0,24))+'..</span></td>'+
+    '<td style="font-family:monospace">'+esc(p.endpoint||'--')+'</td>'+
+    '<td style="font-family:monospace;color:#22c55e">'+esc(p.allowed_ips||'--')+'</td>'+
+    '<td><span class="'+hsClass+'">'+hs+'</span></td>'+
+    '<td style="font-family:monospace">'+esc(p.rx||'0')+'</td>'+
+    '<td style="font-family:monospace">'+esc(p.tx||'0')+'</td>'+
+    '<td><button class="btn btn-sm del-btn" onclick="deletePeer(\''+esc(p.public_key)+'\')">[x]</button></td>'+
+  '</tr>';
+}
+
+function renderPeers(d){
+  var tb = document.getElementById('wg-peers-tbody');
+  if(!d || d.length===0){ tb.innerHTML='<tr><td colspan="7" class="page-empty">Sin peers</td></tr>'; return; }
+  var h=''; for(var i=0;i<d.length;i++) h+=peerRow(d[i]);
+  tb.innerHTML=h;
+}
+
+function cargar(){
+  fetch('/api/wireguard/peers/'+IFACE).then(function(r){ return r.json(); }).then(function(d){
+    renderPeers(d);
+  }).catch(function(){
+    document.getElementById('wg-peers-tbody').innerHTML='<tr><td colspan="7" class="page-empty tx-red">Error al cargar</td></tr>';
+  });
+}
+
+function mostrarAddPeer(){
+  zModal.show('wg-add-peer-modal','Anadir Peer a '+IFACE,
+    '<div class="form-group"><label class="form-label">Public Key</label><input id="peer-pk" class="form-input" placeholder="base64..." style="font-family:monospace"/></div>'+
+    '<div class="form-group"><label class="form-label">Allowed IPs</label><input id="peer-ips" class="form-input" value="10.7.0.15/32" style="font-family:monospace"/></div>'+
+    '<div class="form-group"><label class="form-label">Endpoint (opcional)</label><input id="peer-ep" class="form-input" placeholder="ip:puerto" style="font-family:monospace"/></div>'+
+    '<div class="form-group"><label class="form-label">Preshared Key (opcional)</label><input id="peer-psk" class="form-input" placeholder="base64..." style="font-family:monospace"/></div>'+
+    '<div class="form-group"><label class="form-label">Persistent Keepalive (seg, opcional)</label><input id="peer-ka" class="form-input" value="25" type="number" style="font-family:monospace"/></div>',
+    'Guardar', function(){
+      var pk=document.getElementById('peer-pk').value.trim(); if(!pk){alert('Public Key requerida');return;}
+      fetch('/api/wireguard/peers/add',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({interface:IFACE, public_key:pk, allowed_ips:document.getElementById('peer-ips').value.trim(), endpoint:document.getElementById('peer-ep').value.trim(), preshared_key:document.getElementById('peer-psk').value.trim(), persistent_keepalive:parseInt(document.getElementById('peer-ka').value)||0})
+      }).then(function(r){return r.json();}).then(function(){cargar();zModal.close('wg-add-peer-modal');}).catch(function(e){console.error(e);});
+    }, {size:'lg', cols:2});
+}
+
+function deletePeer(pk){
+  if(!confirm('Quitar este peer?')) return;
+  fetch('/api/wireguard/peers/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({interface:IFACE, public_key:pk})
+  }).then(function(r){return r.json();}).then(function(){cargar();}).catch(function(e){console.error(e);});
+}
+
+window.mostrarAddPeer=mostrarAddPeer;
+window.deletePeer=deletePeer;
+cargar();
+cargarIfaces();
+})();
+</script>
