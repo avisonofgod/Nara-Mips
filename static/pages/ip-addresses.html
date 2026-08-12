@@ -90,7 +90,7 @@ function cargarIPs(){
           '<td><span class="tx-mono tx-weight-600">'+escHtml(ip.address)+'</span></td>'+
           '<td><span class="tx-code">'+escHtml(ip.interface)+'</span></td>'+
           '<td>'+badgeText+'</td>'+
-          '<td><button class="btn-icon-danger" onclick="eliminarIP(\''+escHtml(ip.interface)+'\',\''+escHtml(ip.address)+'\')" title="Delete IP">&#x1f5d1;</button></td>'+
+          '<td><button class="btn-icon-danger" onclick="eliminarIP(\''+escHtml(ip.real||ip.interface)+'\',\''+escHtml(ip.address)+'\')" title="Delete IP">&#x1f5d1;</button></td>'+
         '</tr>';
       }
       container.innerHTML = '<div class="table-wrap"><table><thead><tr>'+

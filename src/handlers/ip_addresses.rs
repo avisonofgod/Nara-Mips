@@ -106,14 +106,20 @@ pub async fn list() -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)
         .filter(|a| {
             // Excluir interfaces dinamicas PPP e ifb (intermedias tc)
             !a.ifname.starts_with("ppp") && a.ifname != "ifb_eth3" && !a.ifname.starts_with("ifb_ppp")
+                // Excluir el puerto CPU del switch (DSA): la misma IP aparece
+                // en eth0 (cpu) y en wan/device — duplicaria filas.
+                && !crate::naming::is_cpu_port(&a.ifname)
         })
         .flat_map(|a| {
+            let real = a.ifname.clone();
+            let display = crate::naming::display_name(&real);
             a.addr_info
                 .into_iter()
                 .filter(|ai| ai.family == "inet")
                 .map(move |ai| {
                     serde_json::json!({
-                        "interface": a.ifname,
+                        "interface": display,
+                        "real": real,
                         "address": ai.local,
                         "family": ai.family,
                     })
