@@ -176,14 +176,9 @@ pub async fn apply_config(
     if restart {
         let result = tokio::task::spawn_blocking(|| {
             let before = count_ppp_interfaces();
-            let out = std::process::Command::new("rc-service")
-                .args(["pppoe", "restart"])
-                .output()
-                .map_err(|e| format!("rc-service: {}", e))?;
-            let ok = out.status.success();
+            let ok = crate::handlers::helpers::service_action_sync("pppoe", "restart");
             if !ok {
-                eprintln!("[PPP-RADIUS] rc-service pppoe restart failed: {}",
-                    String::from_utf8_lossy(&out.stderr));
+                eprintln!("[PPP-RADIUS] rc-service/init.d pppoe restart failed");
             }
             Ok::<(u32, bool), String>((before, ok))
         }).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("spawn_blocking: {}", e)))?;

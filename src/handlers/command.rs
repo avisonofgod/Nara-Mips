@@ -714,12 +714,9 @@ async fn list_nft_rules(table: &str) -> Result<Json<serde_json::Value>, (StatusC
 }
 
 async fn reload_dnsmasq() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let output = Command::new("rc-service")
-        .args(["dnsmasq", "reload"])
-        .output().await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    if !output.status.success() {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Error recargando dnsmasq: {}", String::from_utf8_lossy(&output.stderr))));
+    let ok = crate::handlers::helpers::service_action("dnsmasq", "reload").await;
+    if !ok {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Error recargando dnsmasq (rc-service/init.d)")));
     }
     Ok(Json(serde_json::json!({"success": true})))
 }

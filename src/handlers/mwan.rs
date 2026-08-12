@@ -225,12 +225,8 @@ pub async fn get_mwan_status() -> Json<serde_json::Value> {
 /// Lee conntrack UNA SOLA VEZ y cuenta IPs unicas por mark.
 /// Optimizacion O1: evita 2 lecturas de conntrack por request.
 async fn count_all_client_ips() -> (std::collections::HashMap<u32, usize>, usize, std::collections::HashMap<u32, (usize, usize)>) {
-    let out = Command::new("conntrack")
-        .args(["-L"])
-        .output()
-        .await;
-    let Ok(o) = out else { return (Default::default(), 0, Default::default()) };
-    let text = String::from_utf8_lossy(&o.stdout);
+    let (_ok, text) = crate::handlers::helpers::conntrack_lines().await;
+    if text.is_empty() { return (Default::default(), 0, Default::default()) };
     let mut sets: std::collections::HashMap<u32, std::collections::HashSet<String>> = Default::default();
     // Desglose por tipo de sesion por WAN: (ppp, hotspot) — clasificados por
     // subred (eth3.881 PPPoE = 192.168.20.x, hotspot eth3 = 192.168.10.x).

@@ -180,11 +180,11 @@ pub async fn scripts_list() -> Result<Json<Vec<Script>>, (StatusCode, String)> {
         }
     }
 
-    // 2. Scripts del proyecto en /root/zpot-rs/scripts/
+    // 2. Scripts del proyecto en $PROJ_DIR/scripts/
     // Saltar si ya existe en /usr/local/bin/ (evitar duplicados)
     let existing_names: std::collections::HashSet<String> = scripts.iter().map(|s| s.name.clone()).collect();
 
-    if let Ok(entries) = std::fs::read_dir("/root/zpot-rs/scripts") {
+    if let Ok(entries) = std::fs::read_dir(format!("{}/scripts", PROJ_DIR)) {
         for entry in entries.flatten() {
             let path = entry.path();
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
@@ -510,7 +510,17 @@ pub async fn speedtest_run(Json(body): Json<serde_json::Value>) -> Result<Json<s
 // POST /api/system/files/hotspot/upload (raw tar.gz) -> respalda y extrae
 // ─────────────────────────────────────────────────────────────────────────
 const ZPOT_CFG_DIR: &str = "/etc/zpot";
-const HOTSPOT_DIR: &str = "/root/zpot-rs/static/hotspot";
+// PROJ_DIR embebido (NARA_PROJ_DIR env o default /home/naram) — el codigo
+// original hardcodeaba /root/zpot-rs (host Alpine); en RiverOs/OpenWrt la
+// ruta es /home/naram (symlink -> /etc/nara).
+const PROJ_DIR: &str = match option_env!("NARA_PROJ_DIR") {
+    Some(v) => v,
+    None => "/home/naram",
+};
+
+fn hotspot_static_dir() -> String {
+    format!("{}/static", PROJ_DIR)
+}
 
 fn read_dir_json() -> Vec<(String, String, u64)> {
     let mut out = Vec::new();
@@ -590,7 +600,7 @@ pub async fn import_config(body: axum::body::Bytes) -> Result<Json<serde_json::V
 pub async fn hotspot_download() -> Result<axum::response::Response, (StatusCode, String)> {
     let tmp = format!("/tmp/hotspot-export-{}.tar.gz", std::process::id());
     let out = Command::new("tar")
-        .args(["czf", &tmp, "-C", "/root/zpot-rs/static", "hotspot"])
+        .args(["czf", &tmp, "-C", &hotspot_static_dir(), "hotspot"])
         .output()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if !out.status.success() {
@@ -614,21 +624,22 @@ pub async fn hotspot_upload(body: axum::body::Bytes) -> Result<Json<serde_json::
     std::fs::write(&tmp, &body).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-    let bak = format!("/root/zpot-rs/static/hotspot.bak-{}", ts);
+    let hotspot_dir = format!("{}/hotspot", hotspot_static_dir());
+    let bak = format!("{}/hotspot.bak-{}", hotspot_static_dir(), ts);
     // Respaldar el dir actual (rename) y recrear
-    let _ = std::fs::rename(HOTSPOT_DIR, &bak);
-    let _ = std::fs::create_dir_all(HOTSPOT_DIR);
+    let _ = std::fs::rename(&hotspot_dir, &bak);
+    let _ = std::fs::create_dir_all(&hotspot_dir);
     let out = Command::new("tar")
-        .args(["xzf", &tmp, "-C", "/root/zpot-rs/static"])
+        .args(["xzf", &tmp, "-C", &hotspot_static_dir()])
         .output()
         .map_err(|e| {
-            let _ = std::fs::rename(&bak, HOTSPOT_DIR); // rollback
+            let _ = std::fs::rename(&bak, &hotspot_dir); // rollback
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
     if !out.status.success() {
         // rollback: restaurar el dir original
-        let _ = std::fs::remove_dir_all(HOTSPOT_DIR);
-        let _ = std::fs::rename(&bak, HOTSPOT_DIR);
+        let _ = std::fs::remove_dir_all(&hotspot_dir);
+        let _ = std::fs::rename(&bak, &hotspot_dir);
         let _ = std::fs::remove_file(&tmp);
         return Err((StatusCode::BAD_REQUEST,
             format!("tar invalido (debe contener hotspot/): {}", String::from_utf8_lossy(&out.stderr))));

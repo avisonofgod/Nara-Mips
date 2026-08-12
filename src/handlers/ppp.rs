@@ -221,7 +221,7 @@ async fn disconnect_user(username: &str) -> Result<String, String> {
         .and_then(|s| if s.ip.is_empty() || s.ip == "*" { None } else { Some(s.ip.clone()) })
     else { return Ok(String::new()); };
 
-    let out = tokio::process::Command::new("bash")
+    let out = tokio::process::Command::new("/bin/sh")
         .args(["-c", "ip -json addr show type ppp 2>/dev/null || echo '[]'"])
         .output().await.ok();
     let Some(out) = out else { return Ok(String::new()); };
@@ -246,7 +246,7 @@ async fn disconnect_user(username: &str) -> Result<String, String> {
     let kill_cmd = format!(r#"mac=$(cat /var/run/ppp-mac-{intf} 2>/dev/null | tr -d ' \n'); [ -z "$mac" ] && exit 1; for pid in $(pgrep -x pppd 2>/dev/null); do if grep -q "remotenumber $mac" <(tr '\0' ' ' < /proc/$pid/cmdline) 2>/dev/null; then kill $pid 2>/dev/null; exit 0; fi; done; exit 1"#);
     // P1: verificar el RESULTADO del kill — antes `let _` ignoraba el fallo
     // y respondia "disconnected" aunque el pppd siguiera vivo (falso exito)
-    let kill_out = tokio::process::Command::new("bash").args(["-c", &kill_cmd]).output().await
+    let kill_out = tokio::process::Command::new("/bin/sh").args(["-c", &kill_cmd]).output().await
         .map_err(|e| e.to_string())?;
     if !kill_out.status.success() {
         return Err(format!("no se pudo matar el pppd de {}", intf));
@@ -359,7 +359,7 @@ fn parse_syslog_users() -> SyslogUsers {
 
 /// Fetch interfaces PPP vivas del kernel (ip -json addr show type ppp).
 async fn fetch_ppp_links() -> Vec<serde_json::Value> {
-    tokio::process::Command::new("bash")
+    tokio::process::Command::new("/bin/sh")
         .args(["-c", "ip -json addr show type ppp 2>/dev/null || echo '[]'"])
         .output()
         .await
@@ -430,7 +430,7 @@ pub async fn active_list() -> Result<Json<Vec<serde_json::Value>>, (StatusCode, 
     let mut sessions = Vec::new();
 
     // Leer estadisticas reales del kernel (rx/tx bytes)
-    let stats_raw = tokio::process::Command::new("bash")
+    let stats_raw = tokio::process::Command::new("/bin/sh")
         .args(["-c", "ip -j -s link show type ppp 2>/dev/null || echo '[]'"])
         .output()
         .await
@@ -485,7 +485,7 @@ pub async fn active_list() -> Result<Json<Vec<serde_json::Value>>, (StatusCode, 
 
 // Logs
 pub async fn logs_list() -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)> {
-    let output = tokio::process::Command::new("bash")
+    let output = tokio::process::Command::new("/bin/sh")
         .args(["-c", "journalctl -u ppp --no-pager -n 50 2>/dev/null || grep -i -E '(ppp|pppoe|pppd)' /var/log/messages 2>/dev/null | tail -50 || echo 'no logs'"])
         .output()
         .await
@@ -891,7 +891,7 @@ const PPPOE_SERVER_ARGS: &str = "-I eth3.881 -N 100 -m 1412 -q /usr/sbin/pppd -L
 /// no contra comm -> no matchea. Usamos pgrep -f con patron [c]orchete para
 /// evitar que el propio comando se encuentre a si mismo.
 pub async fn pppoe_status() -> Json<Value> {
-    let out = Command::new("bash")
+    let out = Command::new("/bin/sh")
         .args(["-c", "pgrep -f '[p]ppoe-server -I' || true"])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
@@ -921,7 +921,7 @@ pub async fn pppoe_start() -> Json<Value> {
         "pgrep -f '[p]ppoe-server -I' >/dev/null || setsid {} {} >/dev/null 2>&1 &",
         PPPOE_SERVER_BIN, args
     );
-    let _ = Command::new("bash").args(["-c", &script]).output();
+    let _ = Command::new("/bin/sh").args(["-c", &script]).output();
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     pppoe_status().await
 }
@@ -929,7 +929,7 @@ pub async fn pppoe_start() -> Json<Value> {
 /// POST /api/ppp/server/stop — detiene pppoe-server (impide nuevas conexiones)
 /// Nota: las sesiones PPP activas quedan huérfanas hasta que el CPE reconecte.
 pub async fn pppoe_stop() -> Json<Value> {
-    let _ = Command::new("bash")
+    let _ = Command::new("/bin/sh")
         .args(["-c", "pkill -f '[p]ppoe-server -I' || true"])
         .output();
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;

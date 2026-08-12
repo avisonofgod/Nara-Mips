@@ -1368,9 +1368,7 @@ pub async fn portal_logout(
         let session_time = now - session.start;
         send_accounting(&rad_srv, &rad_sec, &session.username, ip, 2, &session.session_id, session_time, rx, tx, 1); // User-Request
         // Flush conntrack para corte instantaneo de internet
-        let _ = std::process::Command::new("conntrack")
-            .args(["-D", "-s", ip])
-            .output();
+        crate::handlers::helpers::conntrack_flush(ip).await;
         zlog!("[HOTSPOT] LOGOUT: {} ({})", session.username, ip);
     }
     save_sessions_to_disk();
@@ -1474,9 +1472,7 @@ pub async fn session_disconnect_internal(ip: &str, rad_srv: &str, rad_sec: &str,
         let _ = Command::new("tc")
             .args(["class", "del", "dev", &ifb_c, "classid", &up_cid])
             .output();
-        let _ = Command::new("conntrack")
-            .args(["-D", "-s", &ip_c])
-            .output();
+        crate::handlers::helpers::conntrack_flush_sync(&ip_c);
     }).await.ok();
     send_accounting(&rad_srv_c, &rad_sec_c, &username_c, ip, 2, &session_id_c, session_time, stop_rx, stop_tx, terminate_cause);
     zlog!("[DISCONNECT] {} ({}) session_time={}s rx={} tx={}",
@@ -1649,12 +1645,7 @@ pub async fn walled_garden_add(Json(body): Json<serde_json::Value>) -> Result<Js
     let domain = entry.get("domain").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if (ip.is_empty() || ip == "—") && !domain.is_empty() {
         // getent hosts devuelve IPv6 primero — usar ahostsv4 (solo IPv4)
-        let resolved = std::process::Command::new("getent")
-            .args(["ahostsv4", &domain])
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_default();
-        let first_ip = resolved.split_whitespace().nth(0).unwrap_or("").to_string();
+        let first_ip = crate::handlers::helpers::resolve_ipv4(&domain).await.unwrap_or_default();
         if first_ip.parse::<std::net::Ipv4Addr>().is_err() {
             return Err((StatusCode::BAD_REQUEST, format!(
                 "no se pudo resolver '{}' a una IP (getent ahostsv4). Pon la IP manualmente.", domain)));

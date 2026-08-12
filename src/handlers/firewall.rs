@@ -635,6 +635,10 @@ pub async fn conntrack_status() -> Result<Json<serde_json::Value>, (StatusCode, 
         Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).to_string(),
         _ => String::new(),
     };
+    // Fallback: /proc/net/nf_conntrack si el binario conntrack no existe
+    let raw = if raw.is_empty() {
+        std::fs::read_to_string("/proc/net/nf_conntrack").unwrap_or_default()
+    } else { raw };
     let mut count = 0u64;
     let mut by_state: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
     for line in raw.lines() {

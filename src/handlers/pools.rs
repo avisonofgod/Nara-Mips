@@ -120,7 +120,7 @@ pub async fn create(body: Json<serde_json::Value>) -> Result<Json<serde_json::Va
         return Err((StatusCode::INTERNAL_SERVER_ERROR, "no se pudo escribir config".into()));
     }
     drop(_g); // soltar antes del .await (reload)
-    let reload = Command::new("rc-service").args(["dnsmasq", "reload"]).output().await
+    let reload = crate::handlers::helpers::service_action_output("dnsmasq", "reload").await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if reload.status.success() {
         let _ = std::fs::rename(&tmp, DNSMASQ_CONF);
@@ -191,7 +191,7 @@ pub async fn update(body: Json<serde_json::Value>) -> Result<Json<serde_json::Va
     std::fs::write(&tmp, new_lines.join("\n") + "\n")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     drop(_g); // soltar antes del .await (reload)
-    let reload = Command::new("rc-service").args(["dnsmasq", "reload"]).output().await
+    let reload = crate::handlers::helpers::service_action_output("dnsmasq", "reload").await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if reload.status.success() {
         let _ = std::fs::rename(&tmp, DNSMASQ_CONF);
@@ -242,7 +242,7 @@ pub async fn delete(body: Json<serde_json::Value>) -> Result<Json<serde_json::Va
     std::fs::write(&tmp, new_lines.join("\n") + "\n")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     drop(_g); // soltar antes del .await (reload)
-    let reload = Command::new("rc-service").args(["dnsmasq", "reload"]).output().await
+    let reload = crate::handlers::helpers::service_action_output("dnsmasq", "reload").await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if reload.status.success() {
         let _ = std::fs::rename(&tmp, DNSMASQ_CONF);

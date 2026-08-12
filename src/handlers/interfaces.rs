@@ -649,13 +649,21 @@ pub async fn delete_vlan(
 }
 /// Devuelve la tabla bridge vlan show parseada como JSON: matriz puerto x VLAN
 pub async fn list_bridge_vlans() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let out = Command::new("bridge")
-        .args(["vlan", "show"])
-        .output()
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let out = match Command::new("bridge").args(["vlan", "show"]).output().await {
+        Ok(o) => o,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // RiverOs: sin ip-bridge (binario `bridge`) — lista vacia
+            return Ok(Json(serde_json::json!([])));
+        }
+        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    };
 
     if !out.status.success() {
+        // Si bridge no soporta vlan show (sin ip-bridge), lista vacia
+        if String::from_utf8_lossy(&out.stderr).contains("not found")
+            || String::from_utf8_lossy(&out.stderr).contains("No such file") {
+            return Ok(Json(serde_json::json!([])));
+        }
         let stderr = String::from_utf8_lossy(&out.stderr);
         return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("bridge vlan show fallo: {}", stderr)));
     }
