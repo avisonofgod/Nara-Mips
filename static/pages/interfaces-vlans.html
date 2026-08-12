@@ -79,9 +79,9 @@ window.vlanAdd = function() {
   fetch(API_BASE + '/api/interfaces').then(function(r){ return r.json(); }).then(function(data){
     sel.innerHTML = '';
     for (var i = 0; i < data.length; i++) {
-      var iface = data[i].name || data[i];
+      var iface = data[i].real || data[i].name || data[i];
       if (iface === 'lo' || iface.indexOf('.') > 0) continue;
-      sel.innerHTML += '<option value="' + escHtml(iface) + '">' + escHtml(iface) + '</option>';
+      sel.innerHTML += '<option value="' + escHtml(iface) + '">' + escHtml(data[i].name || iface) + '</option>';
     }
   }).catch(function(){
     sel.innerHTML = '<option value="">Sin interfaces</option>';

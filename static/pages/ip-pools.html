@@ -74,7 +74,7 @@ window.mostrarAddPool = function(){
       for(var i=0;i<data.length;i++){
         var d = data[i];
         if(d.type === 'loopback' || d.type === 'wireguard' || d.type === 'bridge' || d.type === 'other' || d.type === 'ppp') continue;
-        opts += '<option value="'+d.name+'">'+d.name+' ('+d.type+')</option>';
+        opts += '<option value="'+(d.real||d.name)+'">'+d.name+' ('+d.type+')</option>';
       }
       sel.innerHTML = opts;
     })['catch'](function(){});
@@ -111,8 +111,8 @@ window.editarPool = function(start, end, iface, lease){
       for(var i=0;i<data.length;i++){
         var d = data[i];
         if(d.type === 'loopback' || d.type === 'wireguard' || d.type === 'bridge' || d.type === 'other' || d.type === 'ppp') continue;
-        var selAttr = (d.name === iface) ? ' selected' : '';
-        opts += '<option value="'+d.name+'"'+selAttr+'>'+d.name+' ('+d.type+')</option>';
+        var selAttr = ((d.real||d.name) === iface) ? ' selected' : '';
+        opts += '<option value="'+(d.real||d.name)+'"'+selAttr+'>'+d.name+' ('+d.type+')</option>';
       }
       sel.innerHTML = opts;
     })['catch'](function(){});

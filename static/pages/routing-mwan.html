@@ -176,7 +176,7 @@ var mwan = {
 
       var opts = '<option value="">— seleccionar —</option>';
       for(var j=0; j<self.availIfaces.length; j++){
-        var ifname = self.availIfaces[j].name.split('@')[0];
+        var ifname = (self.availIfaces[j].real || self.availIfaces[j].name).split('@')[0];
         opts += '<option value="'+ifname+'"'+(w.iface===ifname?' selected':'')+'>'+ifname+'</option>';
       }
 

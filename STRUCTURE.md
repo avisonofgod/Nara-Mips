@@ -23,6 +23,7 @@ zpot-rs/
 │
 ├── src/
 │   ├── main.rs             # Entry point: servidores HTTP (axum), router admin + hotspot
+│   ├── naming.rs           # Normalización de nombres de interfaz (eth0..eth4, oculta cpu port)
 │   ├── routeros_parser.rs  # Parser de salida RouterOS (texto plano) — sin uso activo
 │   │
 │   └── handlers/

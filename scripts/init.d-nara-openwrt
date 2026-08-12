@@ -1,0 +1,31 @@
+#!/bin/sh /etc/rc.common
+# NARA — gestor ISP (zpot). Init script OpenWrt (procd).
+# Instalar como /etc/init.d/nara (o S99nara), chmod +x, luego:
+#   /etc/init.d/nara enable
+#   /etc/init.d/nara start
+#
+# El binario espera static/ y templates/ en PROJ_DIR (/home/naram, embebido
+# en compilacion). Se crean symlinks hacia /etc/nara. Ademas, el binario es
+# dinamico musl: requiere el interprete /usr/lib/libc.so.1 (symlink a
+# /lib/ld-musl-mipsel-sf.so.1 en OpenWrt 25.12.5).
+
+START=99
+STOP=01
+USE_PROCD=1
+PROG=/etc/nara/zpot
+
+start_service() {
+    # Symlinks de PROJ_DIR (embebido en el binario)
+    mkdir -p /home/naram
+    [ -d /etc/nara/static ] && ln -sfn /etc/nara/static /home/naram/static
+    [ -d /etc/nara/templates ] && ln -sfn /etc/nara/templates /home/naram/templates
+    # Interprete musl esperado por el ELF
+    [ -e /usr/lib/libc.so.1 ] || ln -sf /lib/ld-musl-mipsel-sf.so.1 /usr/lib/libc.so.1
+
+    procd_open_instance
+    procd_set_param command "$PROG"
+    procd_set_param respawn 3600 5 5
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_close_instance
+}

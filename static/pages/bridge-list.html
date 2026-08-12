@@ -36,7 +36,7 @@ function loadInterfacesForSelect(){
     if(!sel) return;
     var opts = [];
     for(var i=0;i<d.length;i++){
-      var ifname = d[i].name || d[i].ifname || '';
+      var ifname = d[i].real || d[i].name || d[i].ifname || '';
       if(!ifname) continue;
       if(ifname.indexOf('.')>=0) continue;
       if(ifname.indexOf('bridge')>=0) continue;

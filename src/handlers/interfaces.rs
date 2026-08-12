@@ -1,6 +1,8 @@
 use axum::{http::StatusCode, Json};
 use tokio::process::Command;
 
+use crate::naming;
+
 const NETWORK_CONF: &str = "/etc/network/interfaces";
 
 // P1: lock RMW — serializa las escrituras de /etc/network/interfaces
@@ -30,6 +32,14 @@ pub async fn list_interfaces() -> Result<Json<serde_json::Value>, (StatusCode, S
         if name == "ifb0" || name == "ifb1" || name.starts_with("ifb_ppp") {
             continue;
         }
+
+        // RiverOs: ocultar el puerto CPU del switch (eth0 de OpenWrt DSA)
+        // y presentar los puertos físicos como eth0..eth4 (wan->eth0,
+        // lan2..lan5 -> eth1..eth4).
+        if naming::is_cpu_port(&name) {
+            continue;
+        }
+        let name_display = naming::display_name(&name);
 
         // Parse state from ip output
         let mut state = if rest.contains("state UP") {
@@ -152,7 +162,8 @@ pub async fn list_interfaces() -> Result<Json<serde_json::Value>, (StatusCode, S
         }
 
         list.push(serde_json::json!({
-            "name": name,
+            "name": name_display,
+            "real": name,
             "state": state,
             "mac": mac,
             "mtu": mtu,

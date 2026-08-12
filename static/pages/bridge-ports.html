@@ -208,9 +208,9 @@ function mostrarAddPort(){
     fetch('/api/interfaces').then(function(r){return r.json();}).then(function(ifaces){
       var portOpts = '<option value="">— Seleccionar interfaz —</option>';
       for(var i=0;i<ifaces.length;i++){
-        var n = ifaces[i].name || ifaces[i].ifname || '';
+        var n = ifaces[i].real || ifaces[i].name || ifaces[i].ifname || '';
         if(!n || n.indexOf('bridge')>=0 || n.indexOf('.')>=0 || n.indexOf('ppp')>=0 || n.indexOf('wg')>=0) continue;
-        portOpts += '<option value="'+escHtml(n)+'">'+escHtml(n)+'</option>';
+        portOpts += '<option value="'+escHtml(n)+'">'+escHtml(ifaces[i].name||n)+'</option>';
       }
       var html = '<div class="form-group"><label class="form-label">Bridge</label><select id="addport-bridge" class="form-input">'+bridgeOpts+'</select></div>'+
         '<div class="form-group"><label class="form-label">Puerto</label><select id="addport-port" class="form-input">'+portOpts+'</select></div>';

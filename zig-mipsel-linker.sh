@@ -10,4 +10,4 @@ for a in "$@"; do
   esac
   args+=("$a")
 done
-exec "$GCC" -static "${args[@]}" -lgcc
+exec "$GCC" -static "${args[@]}" -lgcc -lpthread

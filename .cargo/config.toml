@@ -1,4 +1,6 @@
 # Build config NARA para cross-compile mipsel (NO modifica codigo fuente)
+# Binario DINAMICO musl (replica del release previo que corre en el router):
+#   interpreter /usr/lib/libc.so.1, NEEDED libgcc_s.so.1 + libc.so
 [target.mipsel-unknown-linux-musl]
-linker = "/root/naram/zig-mipsel-linker.sh"
-rustflags = ["-C", "relocation-model=static", "-C", "target-cpu=1004kc", "-C", "link-arg=-static"]
+linker = "/home/toolchains/mipsel-linux-musl-cross/bin/mipsel-linux-musl-gcc"
+rustflags = ["-C", "target-cpu=1004kc", "-C", "link-arg=-Wl,-dynamic-linker=/usr/lib/libc.so.1"]

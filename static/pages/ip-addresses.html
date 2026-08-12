@@ -34,7 +34,7 @@ function cargarInterfacesFormIP(){
       for(var i=0;i<data.length;i++){
         var d = data[i];
         if(d.type === 'loopback' || d.type === 'wireguard' || d.type === 'bridge' || d.type === 'other' || d.type === 'ppp') continue;
-        opts += '<option value="'+d.name+'">'+d.name+' ('+d.type+')</option>';
+        opts += '<option value="'+(d.real||d.name)+'">'+d.name+' ('+d.type+')</option>';
       }
       sel.innerHTML = opts;
     })
