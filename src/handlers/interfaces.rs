@@ -157,7 +157,7 @@ pub async fn list_interfaces() -> Result<Json<serde_json::Value>, (StatusCode, S
         let description = get_description(name);
 
         // Filtro: excluir interfaces PPP (dinamicas) e ifb (intermedias tc)
-        if name.starts_with("ppp") || name == "ifb_eth3" || name.starts_with("ifb_ppp") {
+        if name.starts_with("ppp") || name.starts_with("ifb_") {
             continue;
         }
 

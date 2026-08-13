@@ -175,7 +175,7 @@ async fn auto_reconnect_from_cookie(headers: &axum::http::HeaderMap, client_ip: 
     // TODA la tabla ARP (eth0/eth1 WAN, bridges) y una MAC visible en otra
     // iface disparaba un redirect espurio al portal.
                             let hs_cfg_arp = handlers::hotspot::get_hs_config_pub();
-                            let arp_iface = if hs_cfg_arp.iface.is_empty() { "eth3".to_string() } else { hs_cfg_arp.iface.clone() };
+                            let arp_iface = if hs_cfg_arp.iface.is_empty() { "eth4".to_string() } else { hs_cfg_arp.iface.clone() };
                             let arp_text = tokio::task::spawn_blocking(move || {
                                 std::process::Command::new("ip")
                                     .args(["neigh", "show", "dev", &arp_iface])
@@ -612,7 +612,7 @@ fn init_hotspot_nft() -> Result<(), Box<dyn std::error::Error>> {
     // eth3/192.168.10.0/24; cambiar la config dejaba el firewall apuntando a
     // la iface vieja (roto o abierto).
     let cfg = handlers::hotspot::get_hs_config_pub();
-    let iface = if cfg.iface.is_empty() { "eth3".to_string() } else { cfg.iface.clone() };
+    let iface = if cfg.iface.is_empty() { "eth4".to_string() } else { cfg.iface.clone() };
     let gw = if cfg.gw.is_empty() { "192.168.10.1".to_string() } else { cfg.gw.clone() };
     let gw_prefix = gw.rsplit_once('.').map(|(p, _)| p.to_string()).unwrap_or_else(|| "192.168.10".to_string());
     let hs_net = format!("{}.0/24", gw_prefix);

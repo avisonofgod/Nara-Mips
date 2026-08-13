@@ -105,7 +105,7 @@ pub async fn list() -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)
         .into_iter()
         .filter(|a| {
             // Excluir interfaces dinamicas PPP e ifb (intermedias tc)
-            !a.ifname.starts_with("ppp") && a.ifname != "ifb_eth3" && !a.ifname.starts_with("ifb_ppp")
+            !a.ifname.starts_with("ppp") && !a.ifname.starts_with("ifb_")
                 // Excluir el puerto CPU del switch (sw0): la misma IP aparece
                 // en sw0 (cpu) y en el puerto fisico — duplicaria filas.
                 && !crate::naming::is_cpu_port(&a.ifname)

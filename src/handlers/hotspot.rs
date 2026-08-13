@@ -147,7 +147,7 @@ fn get_hs_config() -> HotspotServer {
         // Si aun no hay config, usar hardcoded defaults
         if cfg.is_none() {
             *cfg = Some(HotspotServer {
-                iface: "eth3".into(),
+                iface: "eth4".into(),
                 gw: "192.168.10.1".into(),
                 html_dir: format!("{}/static/hotspot", crate::PROJ_DIR).into(),
                 idle_timeout: 600,
@@ -1621,7 +1621,7 @@ pub fn apply_wg_rules(entries: &[serde_json::Value]) {
     // FIX (2026-08-08): usar el iface del config (antes eth3 hardcodeado) +
     // validar IPv4 antes de inyectar en nft.
     let hs_iface = get_hs_config().iface;
-    let iface = if hs_iface.is_empty() { "eth3".to_string() } else { hs_iface };
+    let iface = if hs_iface.is_empty() { "eth4".to_string() } else { hs_iface };
     cleanup_nft_by_comment("forward", "zpot-wg");
     for entry in entries {
         if let Some(ip) = entry.get("ip").and_then(|v| v.as_str()) {
@@ -2499,6 +2499,9 @@ fn save_ib(entries: &[serde_json::Value]) {
 pub fn apply_ib_rules(entries: &[serde_json::Value]) {
     // Limpiar reglas previas (comment zpot-ib) y re-insertar actuales
     cleanup_nft_by_comment("forward", "zpot-ib");
+    // FIX (2026-08-12): usar el iface del config (antes "eth3" hardcodeado).
+    let ib_iface = get_hs_config().iface;
+    let ib_iface = if ib_iface.is_empty() { "eth4".to_string() } else { ib_iface };
     for entry in entries {
         let ip = entry.get("ip").and_then(|v| v.as_str()).unwrap_or("");
         let mac = entry.get("mac").and_then(|v| v.as_str()).unwrap_or("");
@@ -2510,11 +2513,11 @@ pub fn apply_ib_rules(entries: &[serde_json::Value]) {
             // hereda el bypass (antes solo ip saddr).
             if !mac.is_empty() {
                 let _ = Command::new("nft").args(["insert", "rule", "inet", "hotspot", "forward",
-                    "iif", "eth3", "ip", "saddr", ip, "ether", "saddr", mac, "accept", "comment", "zpot-ib"]).output();
+                    "iif", &ib_iface, "ip", "saddr", ip, "ether", "saddr", mac, "accept", "comment", "zpot-ib"]).output();
                 zlog!("[IB] bypass IP+MAC {} . {} insertado", ip, mac);
             } else {
                 let _ = Command::new("nft").args(["insert", "rule", "inet", "hotspot", "forward",
-                    "iif", "eth3", "ip", "saddr", ip, "accept", "comment", "zpot-ib"]).output();
+                    "iif", &ib_iface, "ip", "saddr", ip, "accept", "comment", "zpot-ib"]).output();
                 zlog!("[IB] bypass IP {} insertado (sin MAC)", ip);
             }
         } else if typ == "blocked" {
@@ -2523,11 +2526,11 @@ pub fn apply_ib_rules(entries: &[serde_json::Value]) {
             // cliente autenticado blockeado seguia navegando (block inerte).
             if !mac.is_empty() {
                 let _ = Command::new("nft").args(["insert", "rule", "inet", "hotspot", "forward",
-                    "iif", "eth3", "ip", "saddr", ip, "ether", "saddr", mac, "drop", "comment", "zpot-ib"]).output();
+                    "iif", &ib_iface, "ip", "saddr", ip, "ether", "saddr", mac, "drop", "comment", "zpot-ib"]).output();
                 zlog!("[IB] block IP+MAC {} . {} insertado", ip, mac);
             } else {
                 let _ = Command::new("nft").args(["insert", "rule", "inet", "hotspot", "forward",
-                    "iif", "eth3", "ip", "saddr", ip, "drop", "comment", "zpot-ib"]).output();
+                    "iif", &ib_iface, "ip", "saddr", ip, "drop", "comment", "zpot-ib"]).output();
                 zlog!("[IB] block IP {} insertado (sin MAC)", ip);
             }
         }
