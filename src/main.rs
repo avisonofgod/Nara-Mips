@@ -650,7 +650,7 @@ fn init_hotspot_nft() -> Result<(), Box<dyn std::error::Error>> {
     let _ = Command::new("nft").args(["add", "rule", "inet", "hotspot", "input",
         "iif", "lo", "accept"]).output();
     let _ = Command::new("nft").args(["add", "rule", "inet", "hotspot", "input",
-        "tcp", "dport", "8081", "ip", "saddr", "{ 10.7.0.0/24, 192.168.2.0/24, 192.168.4.0/24, 192.168.5.0/24 }", "accept"]).output();
+        "tcp", "dport", "8081", "ip", "saddr", "{ 10.7.0.0/24, 192.168.2.0/24, 192.168.4.0/24, 192.168.5.0/24, 192.168.99.0/24 }", "accept"]).output();
     let _ = Command::new("nft").args(["add", "rule", "inet", "hotspot", "input",
         "tcp", "dport", "8081", "drop"]).output();
     // FIX (2026-08-04): el portal :80 SOLO para el hotspot (iface), lo y wg0 —
