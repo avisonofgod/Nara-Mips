@@ -451,10 +451,11 @@ pub async fn create_vlan(body: Json<VlanCreate>) -> Result<Json<serde_json::Valu
         .output()
         .await;
 
-    // Persist to /etc/network/interfaces
+    // Persist to /etc/network/interfaces (best-effort; FIX 2026-08-12:
+    // en OpenWrt/RiverOs el archivo NO existe — crearlo en vez de 500)
     let _g = INTERFACES_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut content = std::fs::read_to_string(NETWORK_CONF)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error leyendo {}: {}", NETWORK_CONF, e)))?;
+        .unwrap_or_default();
 
     if !content.ends_with('\n') {
         content.push('\n');
