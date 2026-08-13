@@ -422,7 +422,11 @@ pub async fn post_server(body: axum::body::Bytes) -> Result<Json<serde_json::Val
         cfg.radius_secret = current.radius_secret.clone();
     }
     save_hs_config(&cfg);
-    *HS_CONFIG.lock().unwrap_or_else(|e| e.into_inner()) = Some(cfg);
+    *HS_CONFIG.lock().unwrap_or_else(|e| e.into_inner()) = Some(cfg.clone());
+    // FIX (2026-08-12): reaplicar el firewall hotspot al cambiar la config
+    // (iface/gw). ANTES solo se aplicaba en el arranque — cambiar iface a
+    // eth4 dejaba el portal :80 apuntando a la iface vieja (eth3).
+    let _ = crate::init_hotspot_nft();
     Ok(Json(serde_json::json!({"status": "ok"})))
 }
 

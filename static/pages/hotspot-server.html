@@ -4,14 +4,14 @@
 </div>
 
 <div id="hs-form" style="max-width:500px">
-  <label class="form-label">Interface</label>
-  <input id="hs-iface" class="form-input" value="eth3">
+  <label class="form-label">Interface (puerto físico ethX)</label>
+  <select id="hs-iface" class="form-input"></select>
 
   <label class="form-label">Gateway IP</label>
-  <input id="hs-gw" class="form-input" value="192.168.10.1">
+  <input id="hs-gw" class="form-input" value="192.168.50.1">
 
   <label class="form-label">HTML Directory</label>
-  <input id="hs-html" class="form-input" value="/root/zpot-rs/static/hotspot">
+  <input id="hs-html" class="form-input" value="/home/naram/static/hotspot">
 
   <label class="form-label">Idle Timeout (segundos)</label>
   <input type="number" id="hs-idle" class="form-input" value="600">
@@ -66,9 +66,30 @@ var hs = {
     Promise.all([
       fetch('/api/hotspot/server').then(function(r){return r.json().catch(function(){return null})}),
       fetch('/api/radius/servers').then(function(r){return r.json().catch(function(){return []})}),
+      fetch('/api/interfaces').then(function(r){return r.json().catch(function(){return []})}),
     ]).then(function(results){
       var cfg = results[0];
       var srvs = results[1];
+      var ifaces = results[2];
+
+      // Select de interfaces: solo ethX fisicos (excluye lo, sw0, br*, wg*)
+      var seli = $('hs-iface');
+      seli.innerHTML = '';
+      for(var i=0;i<ifaces.length;i++){
+        var it = ifaces[i];
+        if(!it.name || it.name==='lo') continue;
+        var opt = document.createElement('option');
+        opt.value = it.real || it.name;
+        opt.textContent = it.name + ' (' + (it.state || '') + ')';
+        if(cfg && cfg.iface && opt.value===cfg.iface) opt.selected = true;
+        seli.appendChild(opt);
+      }
+      if(seli.options.length===0){
+        var o = document.createElement('option');
+        o.value = 'eth4';
+        o.textContent = 'eth4';
+        seli.appendChild(o);
+      }
 
       var selr = $('hs-radius');
       selr.innerHTML = '<option value="">— Sin RADIUS —</option>';
