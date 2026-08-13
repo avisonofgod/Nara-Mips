@@ -1,5 +1,24 @@
 # Changelog - Zpot-RS / NARA-MIPS
 
+## [2026-08-12] - PPPoE->RADIUS operativo + recuperacion post-sysupgrade
+
+- [BIN] NARA-RADIUS (d453ee33, 6.22MB): ImageBuilder + ppp + ppp-mod-pppoe +
+  ppp-mod-radius + rp-pppoe-server (pppd, pppoe-server, radius.so, dictionary
+  /etc/ppp/radius/). build-nara-radius.sh en repo RiverOs.
+- [FIX] ppp_radius.rs: dictionary segun entorno (OpenWrt /etc/ppp/radius/),
+  radattr.so solo si existe, create_dir_all /etc/radiusclient/
+- [FIX] ppp.rs: pppoe-server en eth4.881 (antes eth3.881); VLAN 881 creada en eth4
+- [FIX] interfaces.rs create_vlan: persistencia best-effort (OpenWrt no tiene
+  /etc/network/ -> 500 "error de conexion" en frontend)
+- [RECUPERACION] sysupgrade borra /etc/init.d/rename-ports + /etc/nara (no estan
+  en sysupgrade.conf): restaurar desde initramfs (mount mtdblock9, copiar zpot+
+  static, ln -s libc.so.1, reinstalar S08+S99nara). Documentado en README.
+- [MWAN] 3 wans (eth1/eth2/eth3) con tablas 10/20/30 + ip rules fwmark;
+  reaplicar POST /api/mwan/config tras reboot (el boot no crea rutas FIB)
+- [HOTSPOT] eth4 192.168.50.1/24, pool 192.168.50.2-200, radius 161.97.67.63:1812
+  (radius_auth nativo Rust, sin deps externas); eth3 estatico eliminado de
+  ip-bindings (apply_ib_rules usa cfg.iface)
+
 ## [2026-08-12] - RiverOs: puertos ethX neutros + compat OpenWrt + MWAN down + repo GitHub
 
 - [REPO] Nuevo repositorio `avisonofgod/Nara-Mips` (SSH) con el codigo completo;
