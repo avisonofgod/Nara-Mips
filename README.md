@@ -137,9 +137,11 @@ Admin: http://192.168.3.1:8081 (o la IP de consola configurada dentro de la whit
   plugin radius.so; radattr.so solo si existe). Config: POST /api/ppp/radius
   + /api/ppp/radius/apply.
   RECUPERACION tras sysupgrade: el flasheo borra /etc/init.d/rename-ports y
-  /etc/nara (zpot/static/configs) — NO estan en sysupgrade.conf. Restaurar desde
-  initramfs: mount /dev/mtdblock9, copiar zpot+static a /etc/nara, ln -s libc.so.1,
-  reinstalar rename-ports (S08) + S99nara.
+  /etc/nara (zpot/static/templates/configs) — NO estan en sysupgrade.conf.
+  Restaurar desde initramfs: mount /dev/mtdblock9, copiar zpot+static+templates
+  a /etc/nara, ln -s /etc/nara /home/naram (PROJ_DIR), ln -s libc.so.1,
+  reinstalar rename-ports (S08) + S99nara. Si falta templates/base.html el
+  admin devuelve "base.html not found".
 
 ## Compatibilidad Alpine (NARA original)
 
