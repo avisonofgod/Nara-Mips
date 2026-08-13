@@ -131,12 +131,15 @@ Admin: http://192.168.3.1:8081 (o la IP de consola configurada dentro de la whit
 - **Hotspot → RADIUS**: nativo en zpot (radius_auth construye Access-Request UDP,
   sin dependencias externas). Config: hotspot server radius=161.97.67.63:1812,
   secret 85River@B. El portal rechaza si no hay servidor configurado.
-- **PPPoE → RADIUS**: NO operativo — el bin NARA-BASE no incluye pppd/pppoe-server/
-  ppp-mod-radius/radiusclient (solo dnsmasq, nftables, tc-tiny, wireguard-tools, uci).
-  El backend ppp.rs espera /usr/sbin/pppoe-server + /usr/lib/pppd/<v>/radius.so y
-  /etc/radiusclient/{radiusclient.conf,servers} que NO existen.
-  Para activar: añadir paquetes ppp, ppp-mod-radius, radiusclient-ng al ImageBuilder
-  (RiverOs NARA-BASE) y re-flashear, o instalarlos con apk cuando haya WAN con salida.
+- **PPPoE → RADIUS**: operativo tras bin NARA-RADIUS (e1665bc8/d453ee33): pppd,
+  pppoe-server (rp-pppoe-server), radius.so, dictionary en /etc/ppp/radius/.
+  ppp_radius.rs aplica radiusclient.conf + servers + options (require-mschap-v2,
+  plugin radius.so; radattr.so solo si existe). Config: POST /api/ppp/radius
+  + /api/ppp/radius/apply.
+  RECUPERACION tras sysupgrade: el flasheo borra /etc/init.d/rename-ports y
+  /etc/nara (zpot/static/configs) — NO estan en sysupgrade.conf. Restaurar desde
+  initramfs: mount /dev/mtdblock9, copiar zpot+static a /etc/nara, ln -s libc.so.1,
+  reinstalar rename-ports (S08) + S99nara.
 
 ## Compatibilidad Alpine (NARA original)
 
