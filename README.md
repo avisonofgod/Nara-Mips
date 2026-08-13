@@ -126,6 +126,18 @@ Admin: http://192.168.3.1:8081 (o la IP de consola configurada dentro de la whit
   (md5 d4bf6c76) en `/root/netinstall-openwrt/backups/`
 - NARA-BASE v2 = netest + dnsmasq + nftables + tc-tiny + wireguard-tools + kmod-wireguard
 
+## RADIUS y PPPoE (estado 2026-08-12)
+
+- **Hotspot → RADIUS**: nativo en zpot (radius_auth construye Access-Request UDP,
+  sin dependencias externas). Config: hotspot server radius=161.97.67.63:1812,
+  secret 85River@B. El portal rechaza si no hay servidor configurado.
+- **PPPoE → RADIUS**: NO operativo — el bin NARA-BASE no incluye pppd/pppoe-server/
+  ppp-mod-radius/radiusclient (solo dnsmasq, nftables, tc-tiny, wireguard-tools, uci).
+  El backend ppp.rs espera /usr/sbin/pppoe-server + /usr/lib/pppd/<v>/radius.so y
+  /etc/radiusclient/{radiusclient.conf,servers} que NO existen.
+  Para activar: añadir paquetes ppp, ppp-mod-radius, radiusclient-ng al ImageBuilder
+  (RiverOs NARA-BASE) y re-flashear, o instalarlos con apk cuando haya WAN con salida.
+
 ## Compatibilidad Alpine (NARA original)
 
 Los handlers usan `src/handlers/helpers.rs` para funcionar en ambos entornos:
