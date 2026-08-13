@@ -16,13 +16,6 @@ pub async fn list() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
         if line.contains("ppp") { continue; }
         // Excluir rutas link-local (fe80::/10)
         if line.starts_with("fe80:") { continue; }
-        // FIX (2026-08-12): en DSA el kernel duplica rutas en el puerto CPU
-        // ("dev eth0") — su equivalente "dev wan"/"dev lanN" ya aparece. Si la
-        // misma ruta (mismo destino) existe via cpu y via device, la del cpu
-        // es un duplicado: excluir " dev eth0 " cuando hay version device.
-        if line.contains(" dev eth0 ") {
-            continue;
-        }
         routes.push(serde_json::json!({"raw": line}));
     }
     Ok(Json(serde_json::json!({"routes": routes, "rows": routes.len()})))

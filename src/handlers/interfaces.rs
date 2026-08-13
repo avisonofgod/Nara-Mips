@@ -163,7 +163,7 @@ pub async fn list_interfaces() -> Result<Json<serde_json::Value>, (StatusCode, S
 
         list.push(serde_json::json!({
             "name": name_display,
-            "real": name,
+            "real": name.split('@').next().unwrap_or(&name).to_string(),
             "state": state,
             "mac": mac,
             "mtu": mtu,

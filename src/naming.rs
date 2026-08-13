@@ -1,52 +1,35 @@
 //! Normalización de nombres de interfaz para RiverOs/NARA en MikroTik hEX.
 //!
-//! OpenWrt (25.12 DSA) nombra los puertos físicos del hEX RB750Gr3 como:
-//!   - `wan`        -> ether1 (el único puerto con IP de consola)
-//!   - `lan2..lan5` -> ether2..ether5
-//!   - `eth0`       -> puerto CPU del switch (interno, NO es un puerto físico)
+//! Las interfaces del sistema ya se renombraron a nivel kernel a la forma
+//! neutra `ethX` (ver scripts/rename-ports-openwrt.sh):
+//!   - `eth0` = ether1 (WAN/consola, 192.168.5.1)
+//!   - `eth1` = ether2
+//!   - `eth2` = ether3
+//!   - `eth3` = ether4
+//!   - `eth4` = ether5
+//!   - `sw0`  = puerto CPU del switch (interno, NO es un puerto físico)
 //!
-//! NARA presenta los puertos de forma uniforme y neutra:
-//!   - `eth0` = wan (ether1)   — consola, IP 192.168.5.1
-//!   - `eth1` = lan2 (ether2)
-//!   - `eth2` = lan3 (ether3)
-//!   - `eth3` = lan4 (ether4)
-//!   - `eth4` = lan5 (ether5)
-//!
-//! El puerto CPU `eth0` del switch se oculta del listado (no es cableable).
+//! Con esto el sistema YA entrega ethX: display_name es identidad y solo se
+//! oculta el puerto CPU `sw0`.
 
-/// Devuelve el nombre de presentación (`ethX`) para un nombre DSA de OpenWrt.
-/// Si el nombre no es un puerto físico, devuelve el mismo nombre (lo, wg*, ppp*, br*).
+/// Devuelve el nombre de presentación para una interfaz del sistema.
+/// Con el rename a nivel kernel, los nombres ya son ethX — identidad.
+/// Los slaves DSA se ven como "eth1@sw0" (sufijo = master); limpiar el
+/// sufijo para mostrar solo ethX.
 pub fn display_name(real: &str) -> String {
-    // DSA expone los puertos como "lan2@eth0" (master del switch); el nombre
-    // base es lo que mapeamos. "wan" y "lan2..lan5" no llevan sufijo @master.
-    let base = real.split('@').next().unwrap_or(real);
-    match base {
-        "wan" => "eth0".to_string(),
-        "lan2" => "eth1".to_string(),
-        "lan3" => "eth2".to_string(),
-        "lan4" => "eth3".to_string(),
-        "lan5" => "eth4".to_string(),
-        _ => real.to_string(),
-    }
+    real.split('@').next().unwrap_or(real).to_string()
 }
 
-/// Indica si la interfaz es el puerto CPU del switch (debe ocultarse del listado).
+/// Indica si la interfaz es el puerto CPU del switch (debe ocultarse del
+/// listado). Tras el rename, el cpu port es `sw0` (antes era `eth0`).
 pub fn is_cpu_port(real: &str) -> bool {
-    // El puerto CPU se ve como "eth0" a secas (sin sufijo @). Los puertos
-    // físicos van como "wan" o "lanN@eth0" — nunca deben ocultarse.
-    real == "eth0"
+    real == "sw0"
 }
 
-/// Invierte el mapeo: nombre de presentación `ethX` -> nombre DSA real.
+/// Invierte el mapeo: nombre de presentación -> nombre real. Con el rename
+/// a nivel kernel son el mismo nombre.
 pub fn real_name(display: &str) -> String {
-    match display {
-        "eth0" => "wan".to_string(),
-        "eth1" => "lan2".to_string(),
-        "eth2" => "lan3".to_string(),
-        "eth3" => "lan4".to_string(),
-        "eth4" => "lan5".to_string(),
-        other => other.to_string(),
-    }
+    display.to_string()
 }
 
 #[cfg(test)]
@@ -54,34 +37,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn wan_es_eth0() {
-        assert_eq!(display_name("wan"), "eth0");
-        assert_eq!(real_name("eth0"), "wan");
+    fn eth0_es_puerto_fisico() {
+        assert_eq!(display_name("eth0"), "eth0");
+        assert!(!is_cpu_port("eth0"));
     }
 
     #[test]
-    fn lan2_es_eth1() {
-        assert_eq!(display_name("lan2"), "eth1");
-        assert_eq!(real_name("eth1"), "lan2");
-    }
-
-    #[test]
-    fn lan_con_sufijo_master_se_mapea() {
-        // DSA real de OpenWrt 25.12: los puertos se ven como lanN@eth0
-        assert_eq!(display_name("lan2@eth0"), "eth1");
-        assert_eq!(display_name("lan5@eth0"), "eth4");
-    }
-
-    #[test]
-    fn cpu_port_se_oculta() {
-        assert!(is_cpu_port("eth0"));
-        assert!(!is_cpu_port("wan"));
+    fn sw0_es_cpu_port() {
+        assert!(is_cpu_port("sw0"));
+        assert_eq!(display_name("sw0"), "sw0");
     }
 
     #[test]
     fn nombres_no_fisicos_pasan() {
+        assert_eq!(display_name("lo"), "lo");
         assert_eq!(display_name("wg0"), "wg0");
         assert_eq!(display_name("br-lan"), "br-lan");
         assert!(!is_cpu_port("lo"));
+    }
+
+    #[test]
+    fn real_name_es_identidad() {
+        assert_eq!(real_name("eth0"), "eth0");
+        assert_eq!(real_name("eth4"), "eth4");
+    }
+
+    #[test]
+    fn slaves_dsa_con_sufijo_se_limpian() {
+        // Tras el rename, los puertos aparecen como eth1@sw0 (slave DSA)
+        assert_eq!(display_name("eth1@sw0"), "eth1");
+        assert_eq!(display_name("eth4@sw0"), "eth4");
+        assert!(!is_cpu_port("eth1@sw0"));
     }
 }
