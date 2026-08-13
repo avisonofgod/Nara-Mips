@@ -6,6 +6,11 @@ frontend SPA vanilla servido desde disco. **Arquitectura: mipsel (MIPS32 LE, MT7
 > Nota de naming: el repo original `NARA` (Alpine/x86) queda intacto; esta variante
 > es el clon para **MIPS (mipsel_24kc)** — MikroTik hEX RB750Gr3 con OpenWrt 25.12.5.
 
+> ⚠️ CAPAS SEPARADAS: la capa SO (kernel mejorado, ImageBuilder, scripts de red,
+> rename de puertos) vive en el repo **RiverOs** — ver `avisonofgod/RiverOs` (o
+> `/root/proyectos/riveros/repo` local). NARA-MIPS es SOLO el gestor ISP que corre
+> encima. El rename de puertos a ethX lo hace RiverOs en el boot; NARA lo consume.
+
 ## Arquitectura
 
 ```
@@ -34,8 +39,9 @@ cada cliente los configura a su gusto desde el frontend):
 | eth4 | ether5 | Libre (configurable) |
 | sw0 | — | Puerto CPU del switch (interno, oculto, no cableable) |
 
-El rename se hace en el boot con `scripts/rename-ports-openwrt.sh`
-(`/etc/init.d/rename-ports`, START=08, antes de network START=20).
+El rename se hace en el boot por la capa SO RiverOs (`scripts/rename-ports` en el
+repo RiverOs, instalado como `/etc/init.d/rename-ports`, START=08, antes de network START=20).
+NARA no renombra nada: consume los nombres ethX del sistema.
 
 En el JSON de `/api/interfaces`:
 - `name` = ethX (presentación, sin sufijo @master)
@@ -91,8 +97,7 @@ cp zpot /etc/nara/zpot && chmod +x /etc/nara/zpot
 cp -r static /etc/nara/static
 cp -r templates /etc/nara/templates
 # init script: /etc/init.d/nara (START=99, procd respawn)
-# rename de puertos: scp scripts/rename-ports-openwrt.sh -> /etc/init.d/rename-ports
-#   chmod +x; /etc/init.d/rename-ports enable
+# rename de puertos (capa SO RiverOs): /etc/init.d/rename-ports (ver repo RiverOs)
 ```
 
 Acceso SSH consola: `ssh root@192.168.5.1` (ether1). Ante un rename en caliente,
@@ -109,14 +114,17 @@ Admin: http://192.168.3.1:8081 (o la IP de consola configurada dentro de la whit
 - `src/naming.rs` — nombres de interfaz ethX (oculta cpu port sw0)
 - `static/` — frontend SPA (app.js, pages/, components/, hotspot/)
 - `templates/` — base.html + scripts ppp
-- `scripts/` — rename-ports-openwrt.sh, helpers de despliegue
+- `scripts/` — init.d-nara-openwrt, helpers de despliegue (rename de puertos en repo RiverOs)
 - `docs/`, `MEMENTO.md`, `STRUCTURE.md`, `CHANGELOG.md` — documentación
 
-## Base RiverOs
+## Base RiverOs (capa SO — repo separado)
 
 - Kernel 6.12.94, OpenWrt 25.12.5 (apk), device eth0 = 192.168.5.1/24 (consola)
-- Bins: riveros-NETEST (52 paq) y riveros-NARA-BASE (84 paq, + nft/tc/wg/dnsmasq)
-  en `/root/netinstall-openwrt/backups/`
+- Repo: avisonofgod/RiverOs (local: /root/proyectos/riveros/repo) — kernel mejorado,
+  ImageBuilder (riveros-NETEST 52 paq / NARA-BASE 84 paq), scripts de red y rename ethX
+- Bins: riveros-NETEST-25.12.5.bin (md5 fdb90695) y riveros-NARA-BASE-25.12.5.bin
+  (md5 d4bf6c76) en `/root/netinstall-openwrt/backups/`
+- NARA-BASE v2 = netest + dnsmasq + nftables + tc-tiny + wireguard-tools + kmod-wireguard
 
 ## Compatibilidad Alpine (NARA original)
 

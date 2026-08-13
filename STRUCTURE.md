@@ -60,7 +60,6 @@ nara-mips/
 │                           #   radius-*, firewall-*, bridge-*, routing-mwan, system-*, wireguard-*)
 │
 ├── scripts/
-│   ├── rename-ports-openwrt.sh  # ★ Renombra puertos DSA a ethX (cpu->sw0) en boot (START=08)
 │   └── ppp-zombie-watchdog.sh   # Watchdog PPP zombies (ip link delete)
 │
 ├── zpot-init.sh                # Init script OpenRC (legacy Alpine)
