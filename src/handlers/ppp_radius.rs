@@ -133,7 +133,14 @@ pub async fn apply_config(
     // y la auth RADIUS falla). El plugin hace accounting Start/Stop por defecto.
     conf.push_str(&format!("acctserver\t{}:{}\n", server.ip, server.acct_port));
     conf.push_str("servers\t\t/etc/radiusclient/servers\n");
-    conf.push_str("dictionary\t/etc/radiusclient/dictionary\n");
+    // FIX (2026-08-12): el dictionary vive en /etc/ppp/radius/ en OpenWrt
+    // (ppp-mod-radius) y en /etc/radiusclient/ en Alpine.
+    let dictionary_path = if std::path::Path::new("/etc/ppp/radius/dictionary").exists() {
+        "/etc/ppp/radius/dictionary"
+    } else {
+        "/etc/radiusclient/dictionary"
+    };
+    conf.push_str(&format!("dictionary\t{}\n", dictionary_path));
     conf.push_str("login_radius\t/usr/sbin/login.radius\n");
     conf.push_str("seqfile\t\t/var/run/radius.seq\n");
     conf.push_str("mapfile\t\t/etc/radiusclient/port-id-map\n");
@@ -144,6 +151,10 @@ pub async fn apply_config(
     }
     // P1: backup antes de sobrescribir (rollback manual)
     backup_file(RADIUSCLIENT_CONF);
+    // FIX (2026-08-12): el paquete ppp-mod-radius (OpenWrt) NO crea /etc/radiusclient/
+    if let Some(parent) = std::path::Path::new(RADIUSCLIENT_CONF).parent() {
+        let _ = fs::create_dir_all(parent);
+    }
     fs::write(RADIUSCLIENT_CONF, &conf).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // 2. servers (secret)
@@ -162,7 +173,11 @@ pub async fn apply_config(
     opts.push_str(&format!("ms-dns {}\n", cfg.dns2));
     if cfg.enabled {
         opts.push_str("plugin radius.so\n");
-        opts.push_str("plugin radattr.so\n");
+        // FIX (2026-08-12): radattr.so NO existe en OpenWrt (solo en Alpine);
+        // pppd fallaria al arrancar con plugin inexistente.
+        if std::path::Path::new("/usr/lib/pppd/2.5.2/radattr.so").exists() {
+            opts.push_str("plugin radattr.so\n");
+        }
     }
     backup_file(PPPOE_OPTIONS);
     fs::write(PPPOE_OPTIONS, &opts).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
