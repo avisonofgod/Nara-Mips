@@ -239,11 +239,8 @@ fn get_description(name: &str) -> String {
 
 #[derive(serde::Deserialize)]
 pub struct VlanCreate {
-    name: String,
     vlan_id: i32,
     parent: String,
-    #[serde(default)]
-    title: Option<String>,
     #[serde(default)]
     native: bool,
 }

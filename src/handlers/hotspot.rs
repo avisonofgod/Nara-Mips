@@ -1,12 +1,12 @@
-use axum::{Json, http::StatusCode, extract::Path, extract::ConnectInfo, response::{Response, IntoResponse}, body::Body};
+use axum::{Json, http::StatusCode, extract::ConnectInfo, response::{Response, IntoResponse}, body::Body};
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::process::Command;
-use std::io::Write;
-use std::fs::{self, OpenOptions};
+use std::fs;
 
 const HS_CONFIG_PATH: &str = "/etc/zpot/hotspot-server.json";
 const HS_COOKIES_PATH: &str = "/etc/zpot/hotspot-cookies.json";
@@ -131,9 +131,6 @@ pub struct HotspotSession {
     pub down_ceil_str: String, // ceil DOWN del VSA -> "5M"
 }
 
-fn hs_config() -> &'static Mutex<Option<HotspotServer>> {
-    &HS_CONFIG
-}
 fn get_hs_config() -> HotspotServer {
     let mut cfg = HS_CONFIG.lock().unwrap_or_else(|e| e.into_inner());
     if cfg.is_none() {
@@ -436,7 +433,6 @@ pub async fn post_server(body: axum::body::Bytes) -> Result<Json<serde_json::Val
 #[derive(Deserialize, Default)]
 pub struct PortalQuery {
     pub error: Option<String>,
-    pub username: Option<String>,
 }
 
 /// GET /api/hotspot/active — sesiones activas desde nft set + session store
@@ -537,19 +533,6 @@ pub async fn portal_static(axum::extract::Path(file): axum::extract::Path<String
     }
 }
 
-/// GET /hotspot/portal — pagina de login
-/// Version inline de portal_root para usar desde handle_root sin ConnectInfo
-pub fn portal_root_inline() -> String {
-    let cfg = get_hs_config();
-    let html_dir = if cfg.html_dir.is_empty() { "static/hotspot".into() } else { cfg.html_dir.clone() };
-    let login_path = format!("{}/login.html", html_dir);
-
-    match std::fs::read_to_string(&login_path) {
-        Ok(html) => render_login(html, "", ""),
-        Err(_) => fallback_login_page(),
-    }
-}
-
 pub async fn portal_root(
     headers: axum::http::HeaderMap,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
@@ -591,7 +574,7 @@ pub async fn portal_root(
             for part in cookie_str.split(';') {
                 let part = part.trim();
                 if let Some(b64) = part.strip_prefix("hs_session=") {
-                    if let Ok(decoded) = base64::decode(b64) {
+                    if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(b64) {
                         if let Ok(cookie_val) = String::from_utf8(decoded) {
                             // FIX (2026-08-04): rsplit_once — la MAC es el ULTIMO
                             // segmento; un username con ':' (valido en RFC 2865)
@@ -977,7 +960,7 @@ pub async fn portal_auth(
         // el password RADIUS del cliente. Ahora solo user:mac; el password
         // se busca server-side en hotspot-cookies.json al re-autenticar.
         let cookie_val = format!("{}:{}", form.username, client_mac);
-        let cookie_b64 = base64::encode(&cookie_val);
+        let cookie_b64 = base64::engine::general_purpose::STANDARD.encode(&cookie_val);
         let cookie = format!("hs_session={}; Path=/; Max-Age=604800; SameSite=Lax; HttpOnly", cookie_b64);
         // Guardar cookie server-side (MikroTik-style: server conoce las cookies activas)
         save_cookie_entry(&form.username, &form.password, &client_mac, 604800);
@@ -1054,7 +1037,7 @@ pub fn spawn_interim_global() {
                 )).collect()).unwrap_or_default()
             };
             for (session_idx, (ip, username, session_id, idle_timeout, client_mac)) in sessions.iter().enumerate() {
-                let (session_time, session_idle_cur) = {
+                let (session_time, _session_idle_cur) = {
                     let store = session_store().lock().unwrap_or_else(|e| e.into_inner());
                     let session = store.as_ref().and_then(|m| m.get(ip));
                     match session {
@@ -1288,7 +1271,7 @@ pub async fn portal_logout(
             for part in ch.split(';') {
                 let part = part.trim();
                 if let Some(b64) = part.strip_prefix("hs_session=") {
-                    if let Ok(decoded) = base64::decode(b64) {
+                    if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(b64) {
                         if let Ok(val) = String::from_utf8(decoded) {
                             // FIX (2026-08-04): rsplit_once (username con ':' OK)
                             // + verificar que la MAC de la cookie coincida con la
@@ -2229,13 +2212,7 @@ fn send_accounting(
     // Acct-Status-Type values per RFC 2866 §5.7
     const ACCT_START: u32  = 1;  // Start
     const ACCT_STOP: u32   = 2;  // Stop
-    const ACCT_INTERIM: u32 = 3; // Interim-Update
-    // Acct-Terminate-Cause values per RFC 2866 §5.13
-    const TERM_USER_REQUEST: u32  = 1;  // User-Request (logout)
-    const TERM_IDLE_TIMEOUT: u32  = 4;  // Idle-Timeout
-    const TERM_SESSION_TO: u32    = 5;  // Session-Timeout
-    const TERM_ADMIN_RESET: u32   = 6;  // Admin-Reset
-
+    const TERM_USER_REQUEST: u32 = 1;  // RFC 2866 §5.13 User-Request (logout)
     use std::net::UdpSocket;
     use md5::{Md5, Digest};
     let mut buf = Vec::new();

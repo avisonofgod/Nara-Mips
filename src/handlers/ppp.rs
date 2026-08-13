@@ -884,7 +884,6 @@ fn cleanup_remote_rules() {
 // ─── SERVIDOR PPPoE — toggle ON/OFF ────────────────────────
 
 const PPPOE_SERVER_BIN: &str = "/usr/sbin/pppoe-server";
-const PPPOE_SERVER_ARGS: &str = "-I eth4.881 -N 100 -m 1412 -q /usr/sbin/pppd -L 192.168.20.1 -R 192.168.20.100";
 
 /// GET /api/ppp/server/status — estado del pppoe-server (ON/OFF + PIDs)
 /// OJO: BusyBox pgrep -x compara contra argv[0] COMPLETO ("/usr/sbin/pppoe-server"),

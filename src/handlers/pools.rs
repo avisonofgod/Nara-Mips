@@ -1,5 +1,4 @@
 use axum::{http::StatusCode, Json};
-use tokio::process::Command;
 
 const DNSMASQ_CONF: &str = "/etc/dnsmasq.conf";
 
@@ -15,7 +14,7 @@ fn parse_range(line: &str) -> Vec<serde_json::Value> {
     // Si la línea contiene "dhcp-range=" en medio, está corrupta (1ddhcp-range=...)
     // Buscamos "dhcp-range=" después de la primera ocurrencia
     let rest = val;
-    let mut parts: Vec<&str> = rest.split("dhcp-range=").collect();
+    let parts: Vec<&str> = rest.split("dhcp-range=").collect();
     if parts.len() > 1 {
         // La línea original tenía formato eth2...,1ddhcp-range=wg0...
         // parts[0] = "interface:eth2,192.168.30.2,192.168.30.245,1d"

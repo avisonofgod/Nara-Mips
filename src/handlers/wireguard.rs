@@ -50,14 +50,6 @@ pub async fn list() -> Result<Json<Vec<WgInterface>>, (StatusCode, String)> {
             }
         }
 
-        // Private key via wg show
-        let private_key = Command::new("sh")
-            .args(["-c", &format!("wg show {} private-key 2>/dev/null || grep -m1 '^PrivateKey' /etc/wireguard/{}.conf 2>/dev/null | awk '{{print $3}}' || echo ''", name, name)])
-            .output()
-            .await
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_default();
-
         // IP via ip addr
         let addr_out = Command::new("sh")
             .args(["-c", &format!("ip -o -4 addr show {} 2>/dev/null | awk '{{print $4}}' | cut -d/ -f1 | head -1", name)])
@@ -434,7 +426,7 @@ pub async fn peers_add(Json(body): Json<PeerAdd>) -> Result<Json<serde_json::Val
     let conf_path = format!("/etc/wireguard/{}.conf", body.interface);
     if let Ok(conf) = std::fs::read_to_string(&conf_path) {
         let iface_block: Vec<&str> = conf.lines().take_while(|l| !l.trim().starts_with("[Peer]")).collect();
-        let mut new_conf = iface_block.join("\n");
+        let new_conf = iface_block.join("\n");
         // private_key/dns/address/mtu/listen del bloque Interface actual
         let addr = iface_block.iter().find(|l| l.starts_with("Address")).map(|l| l.splitn(2, '=').nth(1).unwrap_or("").trim()).unwrap_or("");
         let dns = iface_block.iter().find(|l| l.starts_with("DNS")).map(|l| l.splitn(2, '=').nth(1).unwrap_or("").trim()).unwrap_or("");

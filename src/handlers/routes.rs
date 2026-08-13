@@ -88,7 +88,7 @@ pub async fn delete(body: Json<serde_json::Value>) -> Result<Json<serde_json::Va
     if dst == "0.0.0.0/0" || dst == "::/0" {
         return Err((StatusCode::BAD_REQUEST, "no se permite tocar la default route desde este panel".into()));
     }
-    let mut args = vec!["route", "del", dst];
+    let args = vec!["route", "del", dst];
     let output = Command::new("ip").args(&args).output().await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if !output.status.success() {

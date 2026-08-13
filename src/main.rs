@@ -3,15 +3,13 @@ use std::net::SocketAddr;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use axum::{
-    response::{Html, Redirect, IntoResponse, Response},
+    response::{Html, IntoResponse, Response},
     routing::{get, delete, post},
     http::StatusCode,
     Router,
 };
 use tower_http::services::ServeDir;
-use tower_http::set_header::SetResponseHeaderLayer;
-use axum::{http::HeaderValue, Json};
-use base64::Engine;
+use axum::Json;
 use handlers::mwan::WanConfig;
 
 mod handlers;
@@ -592,7 +590,8 @@ done"#)
     let admin_listener = tokio::net::TcpListener::bind(admin_addr).await.unwrap();
 
     // Correr ambos servidores concurrentemente
-    tokio::join!(
+    // FIX: join! devuelve tupla de Result<(), ServeError> — must_use, silenciar con let _
+    let _ = tokio::join!(
         axum::serve(
             hs_listener,
             hotspot_app.into_make_service_with_connect_info::<SocketAddr>(),

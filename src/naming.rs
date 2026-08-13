@@ -26,12 +26,6 @@ pub fn is_cpu_port(real: &str) -> bool {
     real == "sw0"
 }
 
-/// Invierte el mapeo: nombre de presentación -> nombre real. Con el rename
-/// a nivel kernel son el mismo nombre.
-pub fn real_name(display: &str) -> String {
-    display.to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -54,12 +48,6 @@ mod tests {
         assert_eq!(display_name("wg0"), "wg0");
         assert_eq!(display_name("br-lan"), "br-lan");
         assert!(!is_cpu_port("lo"));
-    }
-
-    #[test]
-    fn real_name_es_identidad() {
-        assert_eq!(real_name("eth0"), "eth0");
-        assert_eq!(real_name("eth4"), "eth4");
     }
 
     #[test]

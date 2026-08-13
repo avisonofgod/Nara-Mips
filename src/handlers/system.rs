@@ -160,11 +160,6 @@ pub async fn scripts_list() -> Result<Json<Vec<Script>>, (StatusCode, String)> {
                     // Leer primeras lineas del script para descripcion
                     let src = std::fs::read_to_string(&path).unwrap_or_default();
                     let first_line = src.lines().next().unwrap_or("").to_string();
-                    let src_preview = if src.chars().count() > 80 {
-                        format!("{}...", src.chars().take(80).collect::<String>())
-                    } else {
-                        src.clone()
-                    };
 
                     scripts.push(Script {
                         name: name.to_string(),
@@ -195,11 +190,6 @@ pub async fn scripts_list() -> Result<Json<Vec<Script>>, (StatusCode, String)> {
                     }
                     let src = std::fs::read_to_string(&path).unwrap_or_default();
                     let first_line = src.lines().next().unwrap_or("").to_string();
-                    let src_preview = if src.chars().count() > 80 {
-                        format!("{}...", src.chars().take(80).collect::<String>())
-                    } else {
-                        src.clone()
-                    };
 
                     scripts.push(Script {
                         name: name.to_string(),

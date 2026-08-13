@@ -1,37 +1,6 @@
 use axum::{http::StatusCode, Json};
 use serde::Deserialize;
 use tokio::process::Command;
-use std::sync::Mutex;
-use std::time::Instant;
-use std::collections::HashMap;
-
-// Cache simple TTL 2s para evitar nft call en cada GET
-static CACHE: Mutex<Option<HashMap<String, (Instant, serde_json::Value)>>> = Mutex::new(None);
-
-fn cache_get(key: &str) -> Option<serde_json::Value> {
-    let map = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(ref m) = *map {
-        if let Some((t, v)) = m.get(key) {
-            if t.elapsed() < std::time::Duration::from_secs(2) {
-                return Some(v.clone());
-            }
-        }
-    }
-    None
-}
-
-fn cache_set(key: &str, val: serde_json::Value) {
-    let mut map = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    let m = map.get_or_insert_with(HashMap::new);
-    m.insert(key.to_string(), (Instant::now(), val));
-}
-
-fn cache_invalidate(key: &str) {
-    let mut map = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(ref mut m) = *map {
-        m.remove(key);
-    }
-}
 
 #[derive(Deserialize)]
 pub struct NatRuleCreate {
@@ -267,10 +236,10 @@ async fn list_nft_table_rules(table: &str) -> Result<Vec<serde_json::Value>, Str
                         if let Some(iif) = eobj.get("iif") {
                             return Some(format!("iif \"{}\"", iif.get("name").and_then(|v| v.as_str()).unwrap_or("")));
                         }
-                        if let Some(v) = eobj.get("accept") { return Some("accept".into()); }
-                        if let Some(v) = eobj.get("drop") { return Some("drop".into()); }
-                        if let Some(v) = eobj.get("reject") { return Some("reject".into()); }
-                        if let Some(v) = eobj.get("log") { return Some("log".into()); }
+                        if eobj.get("accept").is_some() { return Some("accept".into()); }
+                        if eobj.get("drop").is_some() { return Some("drop".into()); }
+                        if eobj.get("reject").is_some() { return Some("reject".into()); }
+                        if eobj.get("log").is_some() { return Some("log".into()); }
                         if let Some(v) = eobj.get("counter") {
                             let pkts = v.get("packets").and_then(|p| p.as_u64()).unwrap_or(0);
                             let bytes = v.get("bytes").and_then(|p| p.as_u64()).unwrap_or(0);
@@ -330,7 +299,7 @@ pub async fn list_filter_rules() -> Result<Json<serde_json::Value>, (StatusCode,
             }
         }
         if let Some(rules) = result.get(1).and_then(|v| v.get("rules")).and_then(|a| a.as_array()) {
-            let mut hotspot_rules: Vec<serde_json::Value> = rules.iter().map(|r| {
+            let hotspot_rules: Vec<serde_json::Value> = rules.iter().map(|r| {
                 let mut r2 = r.clone();
                 if let Some(chain) = r2.get("chain").and_then(|c| c.as_str()) {
                     r2["chain"] = serde_json::json!(format!("hotspot/{}", chain));

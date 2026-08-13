@@ -268,13 +268,6 @@ async fn count_all_client_ips() -> (std::collections::HashMap<u32, usize>, usize
 }
 
 #[derive(Debug, Deserialize)]
-pub struct MwanConfigBody {
-    pub mode: Option<String>,
-    pub distribution: Option<String>,
-    pub wans: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct WanBody {
     pub iface: Option<String>,
     pub ip: Option<String>,
@@ -677,7 +670,7 @@ pub async fn post_mwan_config(
     // basura = DoS; inyección de lineas en /etc/network/interfaces)
     // FIX (2026-08-12): el frontend SIEMPRE envia la fila por defecto con
     // iface vacio — NO es un error, se salta esa wan (equivalente a no tenerla).
-    let mut wans_map: HashMap<String, WanBody> = wans_map
+    let wans_map: HashMap<String, WanBody> = wans_map
         .into_iter()
         .filter(|(_, w)| !w.iface.as_deref().unwrap_or("").trim().is_empty())
         .collect();
