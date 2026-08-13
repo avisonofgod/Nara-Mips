@@ -77,7 +77,7 @@ fn is_allowed_script(path: &str) -> bool {
     let canon = std::fs::canonicalize(path)
         .unwrap_or_else(|_| std::path::PathBuf::from(path));
     let canon = canon.to_string_lossy().to_string();
-    (canon.starts_with("/root/zpot-rs/scripts/") && canon.ends_with(".sh"))
+    (canon.starts_with(&format!("{}/scripts/", crate::PROJ_DIR)) && canon.ends_with(".sh"))
         || (canon.starts_with("/usr/local/bin/ppp-") && canon.ends_with(".sh"))
 }
 

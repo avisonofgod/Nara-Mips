@@ -1,30 +1,27 @@
-# Estructura del proyecto Zpot-RS
+# Estructura del proyecto NARA-MIPS (ex Zpot-RS)
 
 ```
-zpot-rs/
+nara-mips/
 ├── Cargo.toml              # Dependencias Rust (axum 0.7, tokio, serde, tower-http)
 ├── Cargo.lock              # Lock de dependencias (autogenerado)
+├── .cargo/config.toml      # Cross mipsel: linker musl-cross, target-cpu=1004kc,
+│                           #   dynamic-linker /usr/lib/libc.so.1 (binario DINAMICO musl)
+├── zig-mipsel-linker.sh    # (legacy) wrapper -static — ya NO se usa (ver config.toml)
 ├── docs/                   # Documentación por módulo
 │   ├── GUIA-SISTEMA.md     # ★ Guía completa de entrada (paquetes, configs, admin, hotspot por escenarios)
-│   ├── README.md
-│   ├── architecture.md
-│   ├── backend.md
-│   ├── frontend.md
-│   ├── hotspot.md
-│   ├── network.md
-│   ├── pppoe.md
-│   ├── radius.md
+│   ├── AUDITORIA-COMPLETA.md, auditoria/  # Auditorías históricas de bugs (DASHBOARD, IP, MWAN, FIREWALL, SYSTEM)
+│   ├── README.md, architecture.md, backend.md, frontend.md
+│   ├── hotspot.md, network.md, pppoe.md, radius.md
 │   └── config-examples/    # JSONs de ejemplo (hotspot, mwan, perfiles)
 │
-├── README.md               # Documentación básica
+├── README.md               # Documentación básica (estado actual: ethX neutro)
 ├── CHANGELOG.md            # Historial de cambios
 ├── STRUCTURE.md            # Este archivo
 ├── .gitignore              # exclusiones: target/, node_modules/, *.log, .hermes/
 │
 ├── src/
-│   ├── main.rs             # Entry point: servidores HTTP (axum), router admin + hotspot
-│   ├── naming.rs           # Normalización de nombres de interfaz (eth0..eth4, oculta cpu port)
-│   ├── routeros_parser.rs  # Parser de salida RouterOS (texto plano) — sin uso activo
+│   ├── main.rs             # Entry point: servidores HTTP (axum), router admin + hotspot, whitelist :8081
+│   ├── naming.rs           # Nombres de interfaz ethX (display=identidad, limpia @sw0; oculta cpu port sw0)
 │   │
 │   └── handlers/
 │       ├── mod.rs          # Re-export de todos los módulos handler
@@ -34,15 +31,18 @@ zpot-rs/
 │       ├── dhcp_leases.rs  # GET /api/dhcp-leases — leases de dnsmasq
 │       ├── dns.rs          # CRUD /api/dns — forwarders en dnsmasq.conf
 │       ├── firewall.rs     # CRUD /api/firewall/* — NAT, filter, mangle, sets, conntrack
+│       ├── helpers.rs      # ★ Compat Alpine/OpenWrt: has_binary, conntrack_lines (/proc), 
+│       │                   #   resolve_ipv4, service_action (rc-service|/etc/init.d), UCI
 │       ├── hotspot.rs      # Hotspot completo: portal cautivo + admin + RADIUS auth/acct + idle timeout
-│       ├── interfaces.rs   # GET /api/interfaces — listado de interfaces del sistema
-│       ├── ip_addresses.rs # CRUD /api/ip-addresses — IPs en interfaces
-│       ├── mwan.rs         # GET/POST /api/mwan/* — balanceo de WANs (nft + ip rules)
+│       ├── interfaces.rs   # GET /api/interfaces — listado ethX (+ name/real, filtra sw0)
+│       ├── ip_addresses.rs # CRUD /api/ip-addresses — IPs en interfaces (filtra sw0)
+│       ├── mwan.rs         # GET/POST /api/mwan/* — balanceo WANs (nft + ip rules + tablas)
 │       ├── pools.rs        # CRUD /api/pools — dhcp-range en dnsmasq.conf
 │       ├── ppp.rs          # CRUD /api/ppp/* — perfiles, secrets, sesiones activas, QoS
+│       ├── ppp_radius.rs   # RADIUS para PPP (COA/DM)
 │       ├── radius.rs       # CRUD /api/radius/servers — servidores RADIUS (auth+acct)
 │       ├── routes.rs       # CRUD /api/routes — rutas IPv4 del sistema
-│       ├── system.rs       # GET /api/system — info del sistema (hostname, uptime, CPU, RAM)
+│       ├── system.rs       # GET /api/system — info del sistema (+ hotspot download/upload)
 │       ├── vlans.rs        # CRUD /api/vlans — VLANs + bridge VLAN table
 │       └── wireguard.rs    # GET/POST /api/wireguard/* — interfaces y peers
 │
@@ -52,89 +52,20 @@ zpot-rs/
 │   └── ppp-ip-down.sh      # Template script ip-down para QoS PPP
 │
 ├── static/
-│   ├── app-v4.js           # SPA v4: navegacion (sw/lp), PAGES, cache API, live data
-│   ├── app-v3.js           # SPA v3 (legacy, sin uso activo)
-│   │
-│   ├── styles/
-│   │   ├── variables.css   # Variables CSS (colores, fuentes, espaciado)
-│   │   └── main.css        # Estilos de componentes (tablas, modales, docks, forms)
-│   │
-│   ├── components/
-│   │   ├── helpers.js      # Funciones auxiliares (esc(), formatBytes(), toast())
-│   │   ├── modal.js        # Sistema de modales (zModal)
-│   │   ├── table.js        # Generacion de tablas dinamicas
-│   │   └── format-helpers.js # Formateo especifico (interfaces, fechas, bytes)
-│   │
-│   ├── hotspot/            # Portal cautivo (carga desde :80)
-│   │   ├── login.html      # Pagina de login del portal
-│   │   ├── rlogin.html     # Redirect para MikroTik rlogin
-│   │   ├── alogin.html     # Pagina de autenticacion en proceso
-│   │   ├── status.html     # Pagina de estado (usuario autenticado)
-│   │   ├── logout.html     # Pagina de cierre de sesion
-│   │   ├── redirect.html   # Pagina de redireccion post-login
-│   │   ├── md5.js          # Cliente MD5 para CHAP-like auth
-│   │   ├── css/style.css   # Estilos del portal
-│   │   └── js/
-│   │       ├── main.js           # JS del portal (login, status, polling)
-│   │       ├── versiculo-texto.js # Texto versiculos biblicos
-│   │       └── versiculos.json   # Lista de versiculos
-│   │
-│   └── pages/              # 45 paginas SPA (una por vista del admin)
-│       ├── dashboard.html
-│       ├── interfaces.html
-│       ├── interfaces-bonding.html
-│       ├── interfaces-bridges.html
-│       ├── interfaces-vlans.html
-│       ├── ip-addresses.html
-│       ├── ip-arp.html
-│       ├── ip-dhcp-leases.html
-│       ├── ip-dns.html
-│       ├── ip-pools.html
-│       ├── ip-routes.html
-│       ├── ppp-active.html
-│       ├── ppp-logs.html
-│       ├── ppp-profiles.html
-│       ├── ip-remote.html
-│       ├── ppp-secrets.html
-│       ├── hotspot-server.html
-│       ├── hotspot-server-profiles.html
-│       ├── hotspot-active.html
-│       ├── hotspot-walled-garden.html
-│       ├── hotspot-ip-bindings.html
-│       ├── radius-servers.html
-│       ├── firewall-nat.html
-│       ├── firewall-filter.html
-│       ├── firewall-mangle.html
-│       ├── firewall-address-lists.html
-│       ├── firewall-limit.html
-│       ├── firewall-conntrack.html
-│       ├── firewall-nftables.html
-│       ├── bridge-list.html
-│       ├── bridge-ports.html
-│       ├── bridge-vlans.html
-│       ├── routing-mwan.html
-│       ├── system-identity.html
-│       ├── system-clock.html
-│       ├── system-ntp.html
-│       ├── system-resources.html
-│       ├── system-logs.html
-│       ├── system-users.html
-│       ├── system-scripts.html
-│       ├── system-scheduler.html
-│       ├── system-files.html
-│       ├── wireguard-interfaces.html
-│       └── wireguard-peers.html
+│   ├── app.js              # SPA: navegacion (sw/lp), PAGES, cache API, live data
+│   ├── styles/             # variables.css, main.css
+│   ├── components/         # helpers.js, modal.js, table.js, format-helpers.js
+│   ├── hotspot/            # Portal cautivo (login, rlogin, alogin, status, logout, redirect, md5.js, css/, js/)
+│   └── pages/              # 52 paginas SPA (dashboard, interfaces, ip-*, ppp-*, hotspot-*,
+│                           #   radius-*, firewall-*, bridge-*, routing-mwan, system-*, wireguard-*)
 │
 ├── scripts/
-│   └── ppp-zombie-watchdog.sh     # Watchdog PPP zombies (ip link delete)
+│   ├── rename-ports-openwrt.sh  # ★ Renombra puertos DSA a ethX (cpu->sw0) en boot (START=08)
+│   └── ppp-zombie-watchdog.sh   # Watchdog PPP zombies (ip link delete)
 │
-├── zpot-init.sh                # Init script OpenRC para Zpot-RS (nftables + dnsmasq)
-├── setup-accel.sh              # Setup accel-ppp (PPPoE alternativo)
-├── start-accel.sh              # Arranque accel-ppp
-├── accel-ppp.conf              # Config accel-ppp
-├── pppoe-watchdog.sh           # Watchdog PPPoE
-├── reinit-pppoe.sh             # Reinicio PPPoE
-└── proxy.sh                    # Proxy HTTP (uso auxiliar)
+├── zpot-init.sh                # Init script OpenRC (legacy Alpine)
+├── setup-accel.sh / start-accel.sh / accel-ppp.conf  # accel-ppp (PPPoE alternativo)
+├── pppoe-watchdog.sh / reinit-pppoe.sh / proxy.sh    # utilidades
 ```
 
 ## 10 Docks (topnav — generados desde PAGES en app-v4.js)

@@ -4,6 +4,12 @@
 > Archivo UNICO de reconstruccion. Si el perfil Hermes `spot` se pierde, con esto lo recreas.
 > Contiene: servidores, workflow, estructura, redes, RADIUS, hotspot, MWAN, bugs clasicos.
 
+> ⚠️ ESTADO ACTUAL (2026-08-12): este memento documenta el proyecto ORIGINAL
+> **Zpot-RS / NARA** (Alpine, puerto 8080, VPS 95.111.238.114, perfil `spot`).
+> La variante activa para RiverOs es **NARA-MIPS** (mipsel, puertos 80/8081,
+> hEX RB750Gr3, OpenWrt 25.12.5) — repo `avisonofgod/Nara-Mips`, fuentes en
+> `/root/proyectos/nara-mips/repo`. Ver README.md y CHANGELOG.md de ese repo.
+
 ---
 
 ## 1. QUE ES

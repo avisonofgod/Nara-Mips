@@ -149,7 +149,7 @@ fn get_hs_config() -> HotspotServer {
             *cfg = Some(HotspotServer {
                 iface: "eth3".into(),
                 gw: "192.168.10.1".into(),
-                html_dir: "/root/zpot-rs/static/hotspot".into(),
+                html_dir: format!("{}/static/hotspot", crate::PROJ_DIR).into(),
                 idle_timeout: 600,
                 shared_users: 1,
                 rate_limit: String::new(),

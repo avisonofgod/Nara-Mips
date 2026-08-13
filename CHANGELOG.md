@@ -1,4 +1,35 @@
-# Changelog - Zpot-RS
+# Changelog - Zpot-RS / NARA-MIPS
+
+## [2026-08-12] - RiverOs: puertos ethX neutros + compat OpenWrt + MWAN down + repo GitHub
+
+- [REPO] Nuevo repositorio `avisonofgod/Nara-Mips` (SSH) con el codigo completo;
+  fuente original `/root/zpot-rs` (NARA Alpine) intacta. Build cross mipsel
+  documentado (nightly + -Zbuild-std, binario DINAMICO musl, interpreter
+  /usr/lib/libc.so.1, PROJ_DIR=/home/naram via NARA_PROJ_DIR).
+- [NOMBRES] ★ Los puertos se renombran a nivel KERNEL a ethX neutro (nada de
+  wan/lan como OPNsense): sw0=cpu port (oculto), eth0=ether1 (consola,
+  192.168.5.1), eth1..eth4=ether2..5. Persistente con
+  `scripts/rename-ports-openwrt.sh` (/etc/init.d/rename-ports, START=08 antes
+  de network START=20). PITFALL: renombrar en vivo con netifd corriendo tira
+  la IP de la interfaz — hacer el cambio via UCI+init, y tener IP de respaldo
+  (192.168.10.1/24) en otro puerto antes de tocar.
+- [COMPAT] src/handlers/helpers.rs: has_binary, conntrack_lines (bin o
+  /proc/net/nf_conntrack), conntrack_flush (no-op sin binario), resolve_ipv4
+  (getent o /etc/hosts+nslookup), service_action (rc-service o /etc/init.d).
+  FIX 3x500: /api/bridge/ports (sin ip-bridge -> []), /api/ppp/active
+  (bash -> /bin/sh), /api/system/files/hotspot/download (rutas /root/zpot-rs
+  -> PROJ_DIR).
+- [MWAN] POST /api/mwan/config: skip wans con iface vacio (fila por defecto
+  del frontend, antes 400 texto plano que rompia r.json()); persistencia UCI
+  en OpenWrt (crear seccion `=interface` antes de set — uci da "Invalid
+  argument" si no existe); rutas a tablas SIEMPRE (ip link set up + route
+  replace, antes solo con status up) — aplica aunque las WANs esten down
+  (rutas linkdown listas al subir carrier).
+- [DUPES] DSA listaba cada IP/ruta 2 veces (puerto + cpu). ip-addresses y
+  routes filtran el cpu port; JSON con name=ethX / real=ethX (limpio de
+  @sw0). Frontend borra con real.
+- [UCI] network.wan.device=eth0, network.wan_lan2.device=eth1,
+  network.wan_lan3.device=eth2 (persistido tras el rename).
 
 ## [2026-08-08] - Dashboard UP/DOWN + MWAN fix + speedtest multiwan + Files/Export/Import
 
