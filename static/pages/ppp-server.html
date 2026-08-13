@@ -1,6 +1,6 @@
 <div class="page-header">
   <h2>📡 Servidor PPPoE</h2>
-  <p>Control del <strong>pppoe-server</strong> en eth3.881 (VLAN 881, pool
+  <p>Control del <strong>pppoe-server</strong> en eth4.881 (VLAN 881, pool
      192.168.20.100+). Solo el servicio: no crea VLANs ni IPs. El arranque
      al boot va junto con Zpot en <code>/etc/local.d/zpot-red.start</code>.</p>
 </div>
@@ -22,7 +22,7 @@
     </div>
     <div id="pppoeMsg" style="margin-top:14px;font-size:0.9rem;min-height:1.2em"></div>
     <div style="margin-top:14px;font-size:0.8rem;color:#777;line-height:1.6">
-      Comando: <code>/usr/sbin/pppoe-server -I eth3.881 -N 100 -m 1412 -q /usr/sbin/pppd
+      Comando: <code>/usr/sbin/pppoe-server -I eth4.881 -N 100 -m 1412 -q /usr/sbin/pppd
       -L 192.168.20.1 -R 192.168.20.100</code><br>
       ⚠️ <b>Stop</b> impide nuevas conexiones; las sesiones activas quedan
       hasta que el CPE reconecte.

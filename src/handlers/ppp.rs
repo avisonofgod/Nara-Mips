@@ -884,7 +884,7 @@ fn cleanup_remote_rules() {
 // ─── SERVIDOR PPPoE — toggle ON/OFF ────────────────────────
 
 const PPPOE_SERVER_BIN: &str = "/usr/sbin/pppoe-server";
-const PPPOE_SERVER_ARGS: &str = "-I eth3.881 -N 100 -m 1412 -q /usr/sbin/pppd -L 192.168.20.1 -R 192.168.20.100";
+const PPPOE_SERVER_ARGS: &str = "-I eth4.881 -N 100 -m 1412 -q /usr/sbin/pppd -L 192.168.20.1 -R 192.168.20.100";
 
 /// GET /api/ppp/server/status — estado del pppoe-server (ON/OFF + PIDs)
 /// OJO: BusyBox pgrep -x compara contra argv[0] COMPLETO ("/usr/sbin/pppoe-server"),
@@ -904,7 +904,7 @@ pub async fn pppoe_status() -> Json<Value> {
 pub async fn pppoe_start() -> Json<Value> {
     // P1: pool parametrizado desde ppp-radius.json (antes -R hardcodeado
     // 192.168.20.100 -N 100 — la UI pool_start/pool_end no se aplicaba)
-    let mut args = String::from("-I eth3.881 -m 1412 -q /usr/sbin/pppd -L 192.168.20.1");
+    let mut args = String::from("-I eth4.881 -m 1412 -q /usr/sbin/pppd -L 192.168.20.1");
     let cfg = super::ppp_radius::load_config();
     let pool_start = cfg.pool_start.trim().to_string();
     let pool_end = cfg.pool_end.trim().to_string();

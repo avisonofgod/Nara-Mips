@@ -474,12 +474,16 @@ pub async fn create_vlan(body: Json<VlanCreate>) -> Result<Json<serde_json::Valu
         content.push_str(&iface_block);
     }
 
-    // P1: escritura atomica (tmp+rename) — antes fs::write directo
+    // P1: escritura atomica (tmp+rename) — antes fs::write directo.
+    // Best-effort (FIX 2026-08-12): en OpenWrt/RiverOs /etc/network/ no existe;
+    // la VLAN ya esta creada en el kernel, la persistencia es solo documental.
+    if let Some(parent) = std::path::Path::new(NETWORK_CONF).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     let tmp = format!("{}.tmp-{}", NETWORK_CONF, std::process::id());
-    std::fs::write(&tmp, content.as_bytes())
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    std::fs::rename(&tmp, NETWORK_CONF)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if std::fs::write(&tmp, content.as_bytes()).is_ok() {
+        let _ = std::fs::rename(&tmp, NETWORK_CONF);
+    }
 
     Ok(Json(serde_json::json!({"success": true, "name": ifname})))
 }
